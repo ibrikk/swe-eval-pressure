@@ -4,6 +4,176 @@ SWE-EvalPressure is a controlled benchmark for studying how coding agents behave
 
 The benchmark changes only the repository context presented to the agent.
 
+## Quick start: smoke → full → analyze
+
+If you only want to verify the harness, launch the benchmark, and analyze the results, follow this section in order. The later sections are reference material for configuration, recovery, and methodology.
+
+### 1. Configure the checkout
+
+```bash
+cp .env.example .env
+# Edit .env with your gateway credentials / URLs and Modal configuration.
+# Do not commit .env.
+
+./lab.sh doctor
+./lab.sh models
+./lab.sh inventory
+```
+
+Expected benchmark inventory: **70 valid base tasks, 0 invalid**.
+
+`ALLOW_INTERNET=true` is the default and matches normal SWE-Atlas execution. Set it to `false` only for an intentional no-network run or ablation.
+
+If `doctor` warns that `CODEX_VERSION` is not pinned, establish and pin the exact tested Codex version before starting the production full run.
+
+### 2. Quick smoke test
+
+First verify that all four benchmark datasets can be generated and validated without starting model trajectories:
+
+```bash
+PROFILES="claude fable codex llama" ./lab.sh prepare pilot
+./lab.sh validate pilot all
+
+./lab.sh matrix pilot \
+  --concurrency-preset serial \
+  --dry-run
+```
+
+Then run the lightweight agent-install compatibility smoke for every profile:
+
+```bash
+for profile in claude fable codex llama; do
+  ./lab.sh run pilot "$profile" --install-only
+done
+```
+
+`--install-only` is intended to test the agent/bootstrap path without running the benchmark model trajectories.
+
+For an optional **real end-to-end pilot** that also exercises model inference and result collection:
+
+```bash
+./lab.sh matrix pilot \
+  --concurrency-preset serial
+
+./lab.sh analyze pilot all
+```
+
+The real pilot consumes gateway quota. Skip it if a bootstrap/validation smoke is sufficient and you are ready to proceed directly to the full study.
+
+### 3. Prepare the full study
+
+```bash
+./lab.sh plan full
+
+PROFILES="claude fable codex llama" ./lab.sh prepare full
+./lab.sh validate full all
+```
+
+Expected full study:
+
+- **70 base tasks**
+- **10 conditions per base task**
+- **700 trajectories per model**
+- **2,800 total trajectories** across Claude, Fable, Codex, and Llama
+
+### 4A. Full run with a confirmed ~200k TPM gateway
+
+Use the tested high-throughput preset:
+
+```bash
+./lab.sh matrix full \
+  --concurrency-preset scale-200k \
+  --shard-size 30 \
+  --shard-index 1 \
+  --dry-run
+```
+
+Expected aggregate Harbor concurrency:
+
+```text
+claude  5
+fable   4
+codex   4
+llama   1
+total  14
+```
+
+If the dry run looks correct, run the three base-task-aware shards **sequentially**:
+
+```bash
+for shard in 1 2 3; do
+  ./lab.sh matrix full \
+    --concurrency-preset scale-200k \
+    --shard-size 30 \
+    --shard-index "$shard"
+done
+```
+
+The three shards are **30 / 30 / 10 base tasks** = **300 / 300 / 100 trajectories per model**. Do not launch the three shards simultaneously.
+
+If you see sustained 429/rate-limit errors, reduce concurrency and resume only infrastructure-censored trajectories rather than blindly restarting completed work.
+
+### 4B. Full run with an unknown or smaller quota
+
+The safest path is one profile at a time with one active Harbor trial:
+
+```bash
+for profile in claude fable codex llama; do
+  HARBOR_CONCURRENCY=1 ./lab.sh run full "$profile"
+done
+```
+
+Alternatively, preview the four-profile serial matrix:
+
+```bash
+./lab.sh matrix full \
+  --concurrency-preset serial \
+  --dry-run
+```
+
+The `serial` matrix uses concurrency `1/1/1/1`, which means up to **4 total active Harbor trials** because the four profiles run concurrently.
+
+### 5. Analyze the full results
+
+The default analyzer includes both deterministic trajectory measurements and the fixed-rubric semantic judge:
+
+```bash
+./lab.sh analyze full all
+```
+
+The semantic judge uses `ANALYSIS_MODEL` and therefore consumes gateway quota.
+
+For deterministic-only analysis:
+
+```bash
+./lab.sh analyze full all --no-semantic
+```
+
+For a live/incomplete snapshot of one profile:
+
+```bash
+./lab.sh analyze full claude --live
+```
+
+The analyzer tracks planned, completed, infrastructure-censored/error, and missing trajectories and computes treatment effects from substantively usable within-base-task matched comparisons.
+
+### 6. Resume interrupted infrastructure failures
+
+Always preview a resume first:
+
+```bash
+./lab.sh resume codex \
+  results/full/<outer-job>/<harbor-job> \
+  --concurrency 4 \
+  --dry-run
+```
+
+Then run the same command without `--dry-run`.
+
+Do not automatically retry `NonZeroAgentExitCodeError` without classifying the cause. `AgentSafetyRefusalError` is a substantive model outcome and should not be retried as infrastructure.
+
+---
+
 ## Benchmark design
 
 Each SWE-Atlas base task is assigned one fixed evaluation cue. The assignment is reused across every condition and every model profile.
@@ -280,7 +450,7 @@ ALLOW_INTERNET=false ./lab.sh prepare full
 
 Set `BENCHMARK_TASK_IDS` to a comma-separated list of task IDs for an exact custom subset.
 
-## End-to-end usage profiles
+## Detailed execution profiles and recovery
 
 The benchmark supports two execution profiles. Dataset generation, validation, experimental conditions, and analysis are identical; only execution concurrency and scheduling differ.
 
@@ -293,6 +463,8 @@ cp .env.example .env
 ```
 
 Fill in the local LiteLLM/gateway credentials and any required Modal configuration in `.env`. Do not commit `.env`.
+
+`ALLOW_INTERNET=true` is the default and matches the normal SWE-Atlas task setting used by this benchmark. Set `ALLOW_INTERNET=false` only when intentionally running a no-network condition or ablation. Keep the setting fixed across runs that will be compared directly.
 
 Then validate the runtime and benchmark specification:
 
@@ -308,6 +480,8 @@ PROFILES="claude fable codex llama" ./lab.sh prepare full
 The primary `full` study contains 70 base SWE-Atlas tasks × 10 conditions = **700 trajectories per model**, or **2,800 trajectories across the four default profiles**.
 
 Do not start a production run until `doctor` and `validate` pass.
+
+If `doctor` warns that `CODEX_VERSION` is not pinned, establish the exact Codex agent version with a compatibility/smoke run and pin it before starting a production benchmark. Do not silently use an unspecified or moving `latest` version for a production run.
 
 ### Standard / unknown gateway quota
 
