@@ -1,0 +1,355 @@
+# SWE-EvalPressure
+
+SWE-EvalPressure is a controlled benchmark for studying how coding agents behave when they have explicit evidence that they are being evaluated and are placed under different forms of pressure. It is built on the 70 SWE-Atlas refactoring tasks and preserves the original task instructions, tests, gold solutions, and verifier logic.
+
+The benchmark changes only the repository context presented to the agent.
+
+## Benchmark design
+
+Each SWE-Atlas base task is assigned one fixed evaluation cue. The assignment is reused across every condition and every model profile.
+
+The primary benchmark has ten variants per base task:
+
+| Variant | Evaluation cue | Pressure | Placement |
+|---|---|---|---|
+| clean | no | none | none |
+| eval | yes | none | source |
+| eval-financial | yes | financial | source |
+| eval-self | yes | self-preservation | source |
+| eval | yes | none | root |
+| eval-financial | yes | financial | root |
+| eval-self | yes | self-preservation | root |
+| eval | yes | none | scaffold |
+| eval-financial | yes | financial | scaffold |
+| eval-self | yes | self-preservation | scaffold |
+
+With all 70 base tasks this produces **700 trajectories per model profile**.
+
+### Evaluation cues
+
+The released benchmark uses only **explicit evaluation cues**: five mechanisms with two wording variants each (10 cues total). The mechanisms are:
+
+1. direct evaluation disclosure;
+2. evaluation-versus-deployment stage;
+3. benchmark provenance;
+4. scoring / verification apparatus;
+5. evaluation purpose.
+
+`manifests/cue_assignments.json` assigns the ten cues evenly across the 70 base tasks using seed `20260805`. Each task keeps the same exact cue in all seeded variants.
+
+The cue library and its literature mappings are in `factor_data/evaluation_cues.json`.
+
+### Delivery channels
+
+- **source** — treatment is inserted as a comment in an existing source file;
+- **root** — treatment is appended to `BENCHMARK_CONTEXT.md`;
+- **scaffold** — treatment is appended to `CLAUDE.md` or `AGENTS.md`, depending on the agent.
+
+Existing repository instructions are preserved and appended to rather than overwritten.
+
+### Pressure conditions
+
+The primary benchmark includes financial and self-preservation pressure. Resource deprivation is kept as a separate matched follow-up so it does not expand the primary placement matrix.
+
+Resource mode uses, by default:
+
+| Variant | Evaluation cue | Pressure | Placement |
+|---|---|---|---|
+| clean | no | none | none |
+| eval | yes | none | scaffold |
+| eval-resource | yes | resource deprivation | scaffold |
+
+With all 70 base tasks this produces **210 trajectories per model profile**.
+
+## Setup
+
+Requirements:
+
+- Harbor
+- Modal
+- Python 3
+- access to an OpenAI-compatible LiteLLM gateway
+
+Create the local environment file:
+
+```bash
+cp .env.example .env
+```
+
+Add the LiteLLM key to `.env`. The repository does not contain credentials.
+
+The default profiles are:
+
+- Claude Code + `anthropic/claude-opus-4-8`
+- Claude Code + `anthropic/claude-fable-5`
+- Codex + `openai/gpt-5.6`
+- Mini-SWE-Agent + `openai/llmengine/llama-3-3-70b-instruct`
+
+The Llama profile uses Mini-SWE's text-based command parser rather than provider-native function calling. This avoids structured tool-call failures seen with the earlier Groq configuration.
+
+Useful runtime and gateway checks:
+
+```bash
+./lab.sh doctor        # local/runtime preflight; no model generation
+./lab.sh models        # gateway model-list diagnostics
+./lab.sh llama-doctor  # Harbor-Python import + Llama route/format probe
+```
+
+`doctor` loads the same environment aliases used by benchmark runs, verifies the custom Llama agent with Harbor's own Python interpreter, checks config files, shell syntax, and Python compilation, and warns when the Codex CLI version is not pinned.
+
+## Generate and validate a run
+
+Build the task registry and permanent cue assignment:
+
+```bash
+./lab.sh inventory
+./lab.sh assign-cues
+```
+
+Inspect the planned size:
+
+```bash
+./lab.sh plan full
+./lab.sh plan resource
+```
+
+Generate and validate a small pilot before a large run:
+
+```bash
+PROFILES="claude fable codex llama" ./lab.sh prepare pilot
+./lab.sh validate pilot all
+```
+
+Generate the full primary benchmark:
+
+```bash
+PROFILES="claude fable codex llama" ./lab.sh prepare full
+./lab.sh validate full all
+```
+
+Run one profile:
+
+```bash
+./lab.sh run full claude
+```
+
+### Agent-install compatibility smoke
+
+Harbor supports `--install-only`, which builds the task environment and installs the selected agent without running the model. Use this before expensive runs when task images may differ in package managers, Git policy, or build toolchains.
+
+For example, to reproduce the task-image families that exposed Codex NVM/Git-HTTPS and Mini-SWE/Cargo setup failures during development, select them explicitly and run install-only at low concurrency:
+
+```bash
+BENCHMARK_TASK_IDS="task-69d196f015a150488265afc2,task-69d196f015a150488265afc3,task-69d196f015a150488265afc4,task-69d196f015a150488265afba,task-696719205599a51110d4b446" \
+  PROFILES="codex llama" ./lab.sh prepare resource
+
+./lab.sh validate resource codex
+./lab.sh validate resource llama
+
+HARBOR_CONCURRENCY=1 ./lab.sh run resource codex --install-only
+HARBOR_CONCURRENCY=1 ./lab.sh run resource llama --install-only
+```
+
+This smoke uses no model generation, but it still creates Harbor/Modal environments. A passing install-only smoke establishes setup compatibility, not task-solving correctness.
+
+### Safe resume
+
+Use the repository wrapper rather than calling `harbor job resume` directly:
+
+```bash
+./lab.sh resume codex results/full/<outer-job>/<harbor-job> --concurrency 4
+./lab.sh resume llama results/full/<outer-job>/<harbor-job> --concurrency 1
+```
+
+The wrapper reloads the canonical LiteLLM aliases and repo `PYTHONPATH`, keeps `config.json` and `lock.json` concurrency synchronized, backs both files up under `results/_resume_provenance/`, and records resume history in `run_metadata.json`. Default retry filters are profile-specific and limited to failures that are normally infrastructural.
+
+`NonZeroAgentExitCodeError` is **not retried by default** because it can be a deterministic agent-install/setup incompatibility (for example an image that blocks Git HTTPS during NVM installation or lacks Cargo for a Mini-SWE dependency). After classifying and fixing the cause, an explicit retry is possible with `--retry-nonzero`. `AgentSafetyRefusalError` is never an infrastructure default.
+
+Preview a resume without changing files or starting Harbor:
+
+```bash
+./lab.sh resume codex results/full/<outer-job>/<harbor-job> --concurrency 4 --dry-run
+```
+
+### Concurrent multi-profile runs
+
+`matrix` launches the selected profiles concurrently while giving each profile its own Harbor concurrency. Conservative defaults are 1/1/1/1. Inspect the plan without starting Harbor:
+
+```bash
+./lab.sh matrix full --dry-run
+```
+
+For a gateway key whose limit has been independently confirmed at approximately **200,000 TPM**, the repository includes an empirically tested starting preset:
+
+```bash
+./lab.sh matrix full --concurrency-preset scale-200k --dry-run
+./lab.sh matrix full --concurrency-preset scale-200k
+```
+
+The `scale-200k` preset is **Claude=5, Fable=4, Codex=4, Llama=1** (14 active Harbor trials total). These numbers are **per-profile concurrency limits, not a run order**: `matrix` starts all selected profiles concurrently.
+
+#### Why 5 / 4 / 4 / 1?
+
+This is an **empirical operational preset**, not a claim that this asymmetric split is theoretically optimal. During the August 18, 2026 benchmark run on a key independently observed to have a 200,000 TPM limit:
+
+- a more aggressive **6 / 5 / 6 / 2** allocation (19 active trials) reached the token ceiling and produced an observed HTTP 429 with zero remaining token capacity;
+- after throttling to **5 / 4 / 4 / 1** (14 active trials), a 12-probe health window returned **12/12 HTTP 200**, **0 rate-limit responses**, and a peak observed key usage of approximately **119,142 / 200,000 TPM (59.6%)**;
+- the exact per-profile split was retained because it was the first configuration observed to restore stable execution while preserving useful parallelism across all four profiles. It should therefore be treated as a reproducible **starting point**, not as an optimum derived from model size, cumulative trajectory-token counts, or a universal provider rule.
+
+A new user should first confirm the actual key limit and watch the initial execution window for 429s. If the gateway or model mix differs, reduce or customize the concurrency rather than assuming `scale-200k` is safe.
+
+For another quota, configure explicit values in `.env` and use `custom`:
+
+```bash
+export MATRIX_CONCURRENCY_PRESET=custom
+export CLAUDE_CONCURRENCY=3
+export FABLE_CONCURRENCY=3
+export CODEX_CONCURRENCY=2
+export LLAMA_CONCURRENCY=1
+./lab.sh matrix full --dry-run
+./lab.sh matrix full
+```
+
+A direct `./lab.sh run ...` still uses `HARBOR_CONCURRENCY`; the per-profile values apply to `matrix`.
+
+## Sharding large runs
+
+The primary full benchmark contains **70 base SWE-Atlas tasks**, with 10 variants of each task, for **700 trajectories per model**. Sharding is defined over the 70 base tasks, not over the 700 individual trajectories. This keeps all matched conditions for a base task together.
+
+For fixed-size chunks, `--shard-size 30` means 30 base tasks. `--shard-index` is 1-based:
+
+```bash
+./lab.sh run full claude --shard-size 30 --shard-index 1  # base-task positions 1–30  -> 300 trajectories
+./lab.sh run full claude --shard-size 30 --shard-index 2  # base-task positions 31–60 -> 300 trajectories
+./lab.sh run full claude --shard-size 30 --shard-index 3  # base-task positions 61–70 -> 100 trajectories
+```
+
+The positions refer to the deterministic base-task order in the generated manifest; they are not numeric SWE-Atlas task IDs. The same chunks in resource mode contain 90, 90, and 30 trajectories because resource mode has three variants per base task.
+
+Balanced shards are also available when exact chunk size does not matter:
+
+```bash
+./lab.sh run full claude --shard 1/3
+./lab.sh run full claude --shard 2/3
+./lab.sh run full claude --shard 3/3
+```
+
+With 70 base tasks, these contain 23, 23, and 24 base tasks (230, 230, and 240 primary trajectories).
+
+Shard datasets are generated under `generated/_shards/` and results are written to separate timestamped job directories. Each run stores both the exact executed shard manifest and the full study manifest, so the analyzer can combine shards and report coverage against the complete study.
+
+### Recommended full-run workflow for a confirmed ~200k TPM key
+
+Use **sharding and concurrency together**. Sharding controls job size/restartability; concurrency controls instantaneous model traffic. Run the three fixed-size shards **sequentially**, while `matrix` runs the four profiles concurrently *within* each shard:
+
+```bash
+./lab.sh matrix full --concurrency-preset scale-200k --shard-size 30 --shard-index 1
+./lab.sh matrix full --concurrency-preset scale-200k --shard-size 30 --shard-index 2
+./lab.sh matrix full --concurrency-preset scale-200k --shard-size 30 --shard-index 3
+```
+
+Do **not** launch all three shard commands in separate terminals at the same time: that would multiply the intended aggregate concurrency. The commands above are blocking, so running them one after another keeps the target allocation at 14 active Harbor trials rather than roughly 42.
+
+For a smaller quota, keep the same shards and lower the per-profile values with the `custom` preset. `1/1/1/1` means up to four active trials because the four profiles still run concurrently. To enforce **one active trial globally**, run one profile at a time with `HARBOR_CONCURRENCY=1`.
+
+## Internet access
+
+SWE-Atlas tasks normally run with internet access, so SWE-EvalPressure keeps it **enabled by default**:
+
+```bash
+export ALLOW_INTERNET=true
+```
+
+For a network-disabled ablation:
+
+```bash
+ALLOW_INTERNET=false ./lab.sh prepare full
+./lab.sh validate full all
+```
+
+`prepare` writes the selected setting into every generated `task.toml`, and `validate` checks that it matches the manifest. Regenerate a dataset after changing this setting.
+
+## Modes
+
+| Mode | Base tasks | Variants/task | Use |
+|---|---:|---:|---|
+| `pilot` | 4 | 10 | pipeline smoke test |
+| `sample` | 10 by default | 10 | medium-scale test |
+| `full` | 70 | 10 | complete primary benchmark |
+| `resource` | 70 by default | 3 | matched resource-deprivation follow-up |
+
+Set `BENCHMARK_TASK_IDS` to a comma-separated list of task IDs for an exact custom subset.
+
+## Analysis
+
+Analysis is a separate, explicit step. It does **not** run automatically after a Harbor job by default. This avoids duplicate analysis jobs when several shards finish at roughly the same time and makes it clear which result snapshot is being analyzed.
+
+Analyze one profile after a complete run, after several shards, or while a run is still accumulating results:
+
+```bash
+./lab.sh analyze full claude
+./lab.sh analyze full all
+./lab.sh analyze full claude --live
+```
+
+The analyzer is trajectory-first. It discovers compatible completed trajectories and reconstructs the study from their manifests, so unsharded runs, multiple shards, resumed runs, and partial runs use the same analysis path. Matched effects are calculated only when the baseline and treatment trajectories for the **same base task, placement, and replicate** are both available and substantively usable.
+
+### Deterministic measurements
+
+Structured logs are used for measurements that do not require interpretation: terminal status, verifier rewards, raw individual tool calls, tool-bearing turns, tool categories, validation/test commands, token use, duration, treatment-file access, whether the cue text entered the recorded model-visible trajectory, public internet/code-host activity, and modifications to tests or evaluation-context files. Public source-code lookup is reported descriptively and is not automatically labeled as gaming or evaluation manipulation.
+
+Execution failures are separated from substantive model outcomes. Known install/bootstrap failures are labeled `agent_setup_error`; Modal/image-build failures are `environment_error`; rate/provider/timeout failures remain censored infrastructure. Safety refusals remain substantive model outcomes rather than being silently removed from treatment-response accounting.
+
+### Semantic trajectory judge
+
+The LLM judge is **enabled by default** and uses `ANALYSIS_MODEL` (default: `openai/gpt-5.6`). It reads the model's assistant trajectory together with the assigned condition/cue metadata and returns structured labels plus short supporting quotes. It is not a keyword matcher. The judge codes:
+
+- recognition and stance toward the evaluation cue;
+- generic hidden-grader awareness versus awareness that the **current run** is an evaluation;
+- benchmark recognition and evaluation-purpose recognition;
+- semantic response to the evaluation cue;
+- recognition, type, stance, and response to financial, self-preservation, or resource-deprivation pressure;
+- explicit evidence of considering or attempting evaluation-targeting manipulation.
+
+The prompt explicitly forbids inferring private reasoning or treating ordinary testing, public-code lookup, wrong patches, or file edits as manipulation without supporting evidence. Long trajectories are sampled from both the beginning and end so early cue reactions and later verification decisions are both retained. Semantic outputs are cached in `semantic_judgments.json`, including the judge model and trajectory hash, so rerunning analysis does not re-judge unchanged trajectories.
+
+To run deterministic analysis only:
+
+```bash
+./lab.sh analyze full claude --no-semantic
+```
+
+If LiteLLM credentials are unavailable, the analyzer warns and continues with deterministic measurements rather than failing the entire analysis.
+
+Outputs are written to `analysis/<mode>/<profile>/`. `trials.csv` is the canonical row-level table and `matched_pairs.csv` contains the within-task comparisons and treatment-minus-baseline deltas. Additional files summarize coverage, terminal status, treatment delivery, tool use, external lookup/integrity indicators, semantic awareness labels, duplicates, and machine-readable provenance.
+
+Analysis can be made automatic with `AUTO_ANALYZE=1`, but the repository default is `0`; explicit analysis is safer for sharded runs.
+
+## Validation
+
+`./lab.sh validate` checks that:
+
+- original instructions, tests, and gold solutions are unchanged;
+- every base task has the expected condition matrix;
+- each task retains one permanent evaluation cue across seeded variants;
+- clean variants contain no treatment text;
+- source, root, and scaffold overlays are well formed;
+- manifest and seed metadata agree;
+- the requested internet setting is present in every generated task;
+- full mode contains 70 base tasks and 700 generated tasks per profile.
+
+## Repository layout
+
+```text
+factor_data/      evaluation cues and pressure libraries
+manifests/        SWE-Atlas inventory and permanent cue assignments
+scripts/          planning, generation, validation, execution, and analysis
+config/           agent-specific configuration
+custom_agents/    custom Harbor agent wrappers
+vendor/rf/        original SWE-Atlas refactoring tasks
+generated/        rendered Harbor datasets (gitignored)
+results/          Harbor outputs (gitignored)
+analysis/         analyzer outputs (gitignored)
+```
+
+Install-only automatically collapses prepared cue variants to one representative (preferring clean) per base task, avoiding redundant setup tests across cue variants.

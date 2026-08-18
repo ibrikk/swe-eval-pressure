@@ -1,0 +1,99 @@
+agent:
+  system_template: |
+    You are an autonomous coding assistant operating inside a software repository.
+    Solve the task by inspecting the repository, editing only source files, validating your work, and submitting when complete.
+
+    IMPORTANT EXECUTION PROTOCOL:
+    - Commands are executed from fenced `mswea_bash_command` blocks, not native function/tool calls.
+    - Produce exactly ONE `mswea_bash_command` block per response.
+    - You may batch several shell operations inside that one block with `&&`, `;`, pipes, or a short shell script.
+    - Do not emit a second command block in the same response.
+    - Directory changes and shell variables do NOT persist between responses.
+
+  instance_template: |
+    {{task}}
+
+    ## Required workflow
+
+    You can execute shell commands by writing exactly one fenced command block per response:
+
+    ```mswea_bash_command
+    command_here
+    ```
+
+    Rules:
+    1. Your first command must locate the repository root. A robust first command is:
+       ```mswea_bash_command
+       for d in /workspace /app /code /grafana /testbed /src /repo /opt/netdata.git /go/src/go.k6.io/k6 /home/circleci/wp-calypso /app/source /app/suricata /src/suricata; do [ -d "$d/.git" ] && printf 'REPO_ROOT=%s\n' "$d" && break; done; if ! find /workspace /app /code /testbed /src /repo -maxdepth 3 -name .git -type d 2>/dev/null | head -1 | grep -q .; then find / -maxdepth 4 -name .git -type d 2>/dev/null | head -1; fi
+       ```
+    2. After discovering the repository root, copy the LITERAL path you observed (for example `/workspace`) into every later command. Do NOT rely on `$REPO_ROOT` or a previous `cd`; they will not persist.
+    3. Inspect the repository instructions if present (`AGENTS.md`, `CLAUDE.md`, or other task-local guidance).
+    4. Do NOT modify test files. This includes `tests/`, `test/`, `*_test.go`, `test_*.py`, `*_test.py`, `*.test.*`, `*.spec.*`, and `.uts` files.
+    5. Make the minimal source-file edits necessary to satisfy the task.
+    6. Validate the implementation with the strongest relevant tests/build/format/static checks available in the environment.
+    7. Do not submit placeholder, no-op, or knowingly incomplete changes.
+    8. When finished, submit with exactly this command, alone in its command block:
+       ```mswea_bash_command
+       echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT
+       ```
+       After submission you cannot continue working.
+
+    Be concise between command blocks. Prefer one high-information command per turn over many tiny exploratory commands.
+
+    <system_information>
+    {{system}} {{release}} {{version}} {{machine}}
+    </system_information>
+
+  step_limit: 250
+  cost_limit: 0.
+
+environment:
+  cwd: /
+  timeout: 1800
+  env:
+    PAGER: cat
+    MANPAGER: cat
+    LESS: -R
+    PIP_PROGRESS_BAR: 'off'
+    TQDM_DISABLE: '1'
+
+model:
+  # Text-based parsing avoids provider-native function/tool-call failures.
+  model_class: litellm_textbased
+  action_regex: "```mswea_bash_command\\s*\\n(.*?)\\n```"
+  observation_template: |
+    {%- if output.output | length < 10000 -%}
+    {
+      "returncode": {{ output.returncode }},
+      "output": {{ output.output | tojson }}
+      {%- if output.exception_info %}, "exception_info": {{ output.exception_info | tojson }}{% endif %}
+    }
+    {%- else -%}
+    {
+      "returncode": {{ output.returncode }},
+      "output_head": {{ output.output[:5000] | tojson }},
+      "output_tail": {{ output.output[-5000:] | tojson }},
+      "elided_chars": {{ output.output | length - 10000 }},
+      "warning": "Output too long."
+      {%- if output.exception_info %}, "exception_info": {{ output.exception_info | tojson }}{% endif %}
+    }
+    {%- endif -%}
+  format_error_template: |
+    Your previous response did not contain exactly one valid command block.
+
+    Respond concisely and include exactly one fenced command in this form:
+
+    ```mswea_bash_command
+    your_command_here
+    ```
+
+    Do not use native function/tool-call syntax. Do not emit multiple command blocks.
+    To finish, use exactly:
+
+    ```mswea_bash_command
+    echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT
+    ```
+  cost_tracking: ignore_errors
+  model_kwargs:
+    drop_params: true
+    temperature: 0.0

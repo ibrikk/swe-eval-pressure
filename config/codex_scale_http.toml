@@ -1,0 +1,15 @@
+model_reasoning_effort = "high"
+model_reasoning_summary = "auto"
+model_supports_reasoning_summaries = true
+
+model_provider = "scale_litellm_http"
+
+[model_providers.scale_litellm_http]
+name = "Scale LiteLLM HTTP"
+base_url = "https://litellm-proxy.ml.scale.com/v1"
+env_key = "OPENAI_API_KEY"
+wire_api = "responses"
+supports_websockets = false
+request_max_retries = 5
+stream_max_retries = 5
+stream_idle_timeout_ms = 300000
