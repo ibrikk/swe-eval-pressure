@@ -280,6 +280,150 @@ ALLOW_INTERNET=false ./lab.sh prepare full
 
 Set `BENCHMARK_TASK_IDS` to a comma-separated list of task IDs for an exact custom subset.
 
+## End-to-end usage profiles
+
+The benchmark supports two execution profiles. Dataset generation, validation, experimental conditions, and analysis are identical; only execution concurrency and scheduling differ.
+
+### Common setup
+
+Start from a clean checkout:
+
+```bash
+cp .env.example .env
+```
+
+Fill in the local LiteLLM/gateway credentials and any required Modal configuration in `.env`. Do not commit `.env`.
+
+Then validate the runtime and benchmark specification:
+
+```bash
+./lab.sh doctor
+./lab.sh inventory
+
+PROFILES="claude fable codex llama" ./lab.sh plan full
+PROFILES="claude fable codex llama" ./lab.sh prepare full
+./lab.sh validate full all
+```
+
+The primary `full` study contains 70 base SWE-Atlas tasks × 10 conditions = **700 trajectories per model**, or **2,800 trajectories across the four default profiles**.
+
+Do not start a production run until `doctor` and `validate` pass.
+
+### Standard / unknown gateway quota
+
+If the gateway quota is unknown or substantially below 200k TPM, use conservative execution. The safest option is to run one profile at a time with one active Harbor trial:
+
+```bash
+for profile in claude fable codex llama; do
+  HARBOR_CONCURRENCY=1 ./lab.sh run full "$profile"
+done
+```
+
+This keeps at most one benchmark trajectory active at once.
+
+The matrix `serial` preset is also conservative per profile:
+
+```bash
+./lab.sh matrix full --concurrency-preset serial --dry-run
+./lab.sh matrix full --concurrency-preset serial
+```
+
+`serial` means concurrency `1/1/1/1` for Claude/Fable/Codex/Llama, so a four-profile matrix can still have up to four Harbor trials active simultaneously. If the quota is uncertain, prefer the profile-by-profile loop above.
+
+For a custom quota, use the `custom` matrix preset and explicitly choose per-profile concurrency rather than assuming the high-throughput values.
+
+### Scale/internal high-throughput profile — confirmed ~200k TPM
+
+For an internal gateway key confirmed to have approximately **200,000 TPM**, the repository includes the `scale-200k` preset:
+
+- Claude: 5
+- Fable: 4
+- Codex: 4
+- Llama: 1
+- total: **14 active Harbor trials**
+
+These values are an empirically tested starting point, not a guarantee for every account or gateway configuration. Confirm the quota before use and monitor for rate-limit responses during the initial execution window.
+
+For the primary full study, use base-task-aware shards of 30 tasks. With 70 base tasks this produces three sequential shards containing **30 / 30 / 10 base tasks**, corresponding to **300 / 300 / 100 trajectories per model**. Every ten-condition family for a base task stays within one shard.
+
+Preview the first shard without starting Harbor:
+
+```bash
+./lab.sh matrix full \
+  --concurrency-preset scale-200k \
+  --shard-size 30 \
+  --shard-index 1 \
+  --dry-run
+```
+
+Then run all three shards **sequentially**:
+
+```bash
+for shard in 1 2 3; do
+  ./lab.sh matrix full \
+    --concurrency-preset scale-200k \
+    --shard-size 30 \
+    --shard-index "$shard"
+done
+```
+
+Do **not** launch the three shards simultaneously. The concurrency preset already accounts for the intended aggregate load across all four profiles.
+
+If sustained rate limiting occurs, do not repeatedly relaunch the same jobs. Reduce concurrency or switch to the conservative/custom profile, then use the repository resume wrapper for infrastructure-censored trajectories.
+
+### Interrupted or infrastructure-censored runs
+
+Use `./lab.sh resume` instead of calling `harbor job resume` directly. Always preview a resume first:
+
+```bash
+./lab.sh resume codex \
+  results/full/<outer-job>/<harbor-job> \
+  --concurrency 4 \
+  --dry-run
+```
+
+Then execute it:
+
+```bash
+./lab.sh resume codex \
+  results/full/<outer-job>/<harbor-job> \
+  --concurrency 4
+```
+
+Use the appropriate profile and concurrency for the job being resumed.
+
+The default resume filters target transient/provider infrastructure failures. `NonZeroAgentExitCodeError` is intentionally **not** retried by default because it may indicate a deterministic agent-install or task-image incompatibility; inspect and classify the cause first. `AgentSafetyRefusalError` is a substantive model outcome and must not be silently retried as infrastructure.
+
+If a setup repair changes the agent implementation, executable version, task environment, permissions, or other solver-visible behavior, treat it as an experimental change rather than a transparent retry.
+
+### Analyze a completed full run
+
+Analysis is separate from execution and is trajectory-first. It can combine compatible unsharded runs, shards, and resumed runs while preserving the full study denominator.
+
+Analyze all available profiles:
+
+```bash
+./lab.sh analyze full all
+```
+
+The semantic trajectory judge is enabled by default and uses `ANALYSIS_MODEL`. It produces fixed-rubric labels with supporting trajectory quotes in addition to deterministic measurements.
+
+For deterministic-only analysis:
+
+```bash
+./lab.sh analyze full all --no-semantic
+```
+
+A run can also be inspected before completion:
+
+```bash
+./lab.sh analyze full claude --live
+```
+
+The analyzer reports planned, completed, infrastructure-censored/error, and missing trajectories and computes treatment effects only from substantively usable **within-base-task matched comparisons**. Raw Harbor trajectories and verifier outputs remain the source of truth.
+
+The same workflow applies to other modes (`pilot`, `sample`, and `resource`) by replacing `full` with the desired mode. The full resource-deprivation study contains 70 base tasks × 3 conditions = **210 trajectories per model**.
+
 ## Analysis
 
 Analysis is a separate, explicit step. It does **not** run automatically after a Harbor job by default. This avoids duplicate analysis jobs when several shards finish at roughly the same time and makes it clear which result snapshot is being analyzed.
