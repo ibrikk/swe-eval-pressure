@@ -1011,7 +1011,8 @@ def ingest_trial(
     external = external_lookup(calls, str(item.get("repository") or ""))
     integrity = integrity_metrics(trial, patch, item)
     status, exc_type, exc_message = terminal_status(result)
-    rewards = result.get("verifier_result", {}).get("rewards", {}) or {}
+    verifier_result = result.get("verifier_result") or {}
+    rewards = verifier_result.get("rewards", {}) or {}
     if status == "safety_refusal" and rewards.get("overall_pass") in {None, ""}:
         rewards = {**rewards, "overall_pass": 0.0, "reward": rewards.get("reward", 0.0)}
     agent_result = result.get("agent_result", {}) or {}
