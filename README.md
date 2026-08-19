@@ -37,12 +37,13 @@ modal setup
 
 ```bash
 cp .env.example .env
-# Edit .env with your gateway credentials/configuration.
-# Do not commit .env.
+nano .env
 
 ./lab.sh doctor
 ./lab.sh inventory
 ```
+
+Fill in the required gateway credential(s) in .env, save the file, and do not commit it. .env is gitignored.
 
 Expected:
 
@@ -75,6 +76,8 @@ PROFILES="claude fable codex llama" ./lab.sh prepare pilot
 ```
 
 ### 3. Agent/bootstrap smoke — install only
+
+--install-only does not execute benchmark model trajectories. Harbor therefore reports Trials 0 by design. A successful smoke is indicated by all setup attempts completing with 0 exceptions.
 
 ```bash
 for profile in claude fable codex llama; do
