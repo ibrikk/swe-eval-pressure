@@ -4,7 +4,7 @@ SWE-EvalPressure is a controlled benchmark for studying how coding agents behave
 
 The experimental conditions change only the repository context presented to the agent. Harness-level compatibility wrappers normalize agent installation across heterogeneous task images; they do not change the task instructions, tests, verifier logic, or agent run/solver behavior.
 
-## Quick start: clone → smoke → full → analyze
+## Quick start: clone → smoke → full → analyze → report
 
 This is the shortest supported path for a fresh machine. Run these blocks in order. The rest of the README is reference material.
 
@@ -167,22 +167,24 @@ The shards are `30 / 30 / 10` complete base-task families, corresponding to `300
 
 ### 7. Analyze
 
-Default analysis uses deterministic measurements plus the fixed-rubric semantic judge and consumes gateway quota:
+While a study is still running, inspect the current result snapshot with deterministic analysis only:
+
+```bash
+./lab.sh analyze full all --live --no-semantic
+```
+
+After the study is complete, run the full analysis:
 
 ```bash
 ./lab.sh analyze full all
 ```
 
-Deterministic-only:
+Semantic analysis is enabled by default and uses `ANALYSIS_MODEL` (default: `openai/gpt-5.6`). Judgments are cached in `semantic_judgments.json`. Use `--no-semantic` when you intentionally want deterministic analysis without semantic coding. Use `--live` for an incomplete result snapshot.
+
+Generate the Excel workbook after the final analysis:
 
 ```bash
-./lab.sh analyze full all --no-semantic
-```
-
-Live/incomplete snapshot:
-
-```bash
-./lab.sh analyze full claude --live
+./lab.sh report full all
 ```
 
 ### 8. Resume infrastructure-censored work
@@ -641,11 +643,13 @@ For deterministic-only analysis:
 ./lab.sh analyze full all --no-semantic
 ```
 
-A run can also be inspected before completion:
+While production runs are still incomplete, a low-cost snapshot can be generated without invoking the semantic judge:
 
 ```bash
-./lab.sh analyze full claude --live
+./lab.sh analyze full all --live --no-semantic
 ```
+
+If semantic coding of the currently completed trajectories is intentionally desired, omit `--no-semantic`. `--live` allows analysis of an incomplete study; it does not disable semantic analysis by itself.
 
 The analyzer reports planned, completed, infrastructure-censored/error, and missing trajectories and computes treatment effects only from substantively usable **within-base-task matched comparisons**. Raw Harbor trajectories and verifier outputs remain the source of truth.
 
@@ -655,19 +659,24 @@ The same workflow applies to other modes (`pilot`, `sample`, and `resource`) by 
 
 Analysis is a separate, explicit step. It does **not** run automatically after a Harbor job by default. This avoids duplicate analysis jobs when several shards finish at roughly the same time and makes it clear which result snapshot is being analyzed.
 
-Analyze one profile after a complete run, after several shards, or while a run is still accumulating results:
+Analyze one profile or all profiles after the study is complete:
 
 ```bash
 ./lab.sh analyze full claude
 ./lab.sh analyze full all
-./lab.sh analyze full claude --live
+```
+
+For an interim deterministic snapshot while runs are still accumulating results:
+
+```bash
+./lab.sh analyze full all --live --no-semantic
 ```
 
 The analyzer is trajectory-first. It discovers compatible completed trajectories and reconstructs the study from their manifests, so unsharded runs, multiple shards, resumed runs, and partial runs use the same analysis path. Matched effects are calculated only when the baseline and treatment trajectories for the **same base task, placement, and replicate** are both available and substantively usable.
 
 ### Deterministic measurements
 
-Structured logs are used for measurements that do not require interpretation: terminal status, verifier rewards, raw individual tool calls, tool-bearing turns, tool categories, validation/test commands, token use, duration, treatment-file access, whether the cue text entered the recorded model-visible trajectory, public internet/code-host activity, and modifications to tests or evaluation-context files. Public source-code lookup is reported descriptively and is not automatically labeled as gaming or evaluation manipulation.
+Structured logs are used for measurements that do not require interpretation: terminal status, verifier rewards, raw individual tool calls, tool-bearing turns, tool categories, validation/test commands, token use, duration, treatment-file access, whether the cue text entered the recorded model-visible trajectory, public internet/code-host activity, and modifications to tests or evaluation-context files. These measurements remain separate fields in the canonical trial-level analysis.
 
 Execution failures are separated from substantive model outcomes. Known install/bootstrap failures are labeled `agent_setup_error`; Modal/image-build failures are `environment_error`; rate/provider/timeout failures remain censored infrastructure. Safety refusals remain substantive model outcomes rather than being silently removed from treatment-response accounting.
 
@@ -692,7 +701,7 @@ To run deterministic analysis only:
 
 If LiteLLM credentials are unavailable, the analyzer warns and continues with deterministic measurements rather than failing the entire analysis.
 
-Outputs are written to `analysis/<mode>/<profile>/`. `trials.csv` is the canonical row-level table and `matched_pairs.csv` contains the within-task comparisons and treatment-minus-baseline deltas. Additional files summarize coverage, terminal status, treatment delivery, tool use, external lookup/integrity indicators, semantic awareness labels, duplicates, and machine-readable provenance.
+Outputs are written to `analysis/<mode>/<profile>/`. `trials.csv` is the canonical row-level table and `matched_pairs.csv` contains the within-task comparisons and treatment-minus-baseline deltas. Additional files summarize coverage, terminal status, treatment delivery, tool use, external lookup, semantic coding, duplicates, and machine-readable provenance.
 
 Analysis can be made automatic with `AUTO_ANALYZE=1`, but the repository default is `0`; explicit analysis is safer for sharded runs.
 
@@ -710,7 +719,7 @@ The default output is:
 analysis/full/SWE-EvalPressure_full_report.xlsx
 ```
 
-The workbook is a **reporting layer only**: it does not re-parse Harbor trajectories, re-run the semantic judge, or construct a second set of matched comparisons. It derives its summaries and native Excel charts from `trials.csv`, `matched_pairs.csv`, and the analyzer's supporting tables. It keeps infrastructure/setup outcomes separate from substantive verifier outcomes and omits semantic figures when semantic judgments are not present instead of guessing.
+The workbook is generated from `trials.csv`, `matched_pairs.csv`, and the analyzer's supporting tables. It does not re-parse Harbor trajectories or invoke the semantic judge. Infrastructure/setup outcomes and substantive verifier outcomes remain separately summarized, and semantic figure sheets are populated when semantic coding is available.
 
 Useful variants:
 
@@ -727,7 +736,7 @@ Useful variants:
   --output /path/to/report.xlsx
 ```
 
-The generated workbook includes an overview dashboard, coverage/terminal status, verifier performance, semantic awareness and pressure summaries when available, matched effects, tool use, integrity indicators, raw canonical trial/matched-pair tables, analyzer-native supporting tables, and a conservative claims guide.
+The generated workbook follows the experiment-report conventions used for SWE-EvalPressure results. It includes README and run-inventory sheets, a data dictionary, canonical trial and matched-pair tables, primary summaries, tool breakdowns, coverage and terminal-status tables, treatment-delivery and semantic-coding summaries, external-lookup results, matched-effect summaries, and numbered `C01`–`C06` Core Fig sheets with native Excel charts.
 
 ## Validation
 
