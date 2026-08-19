@@ -163,7 +163,7 @@ With the confirmed ~200k TPM preset, run the three base-task-aware shards sequen
 
 ```bash
 for shard in 1 2 3; do
-  ./lab.sh matrix full \
+  caffeinate -dimsu ./lab.sh matrix full \
     --concurrency-preset scale-200k \
     --shard-size 30 \
     --shard-index "$shard"
