@@ -1,5 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
+
+# SWE-EvalPressure report command
+if [[ "${1:-}" == "report" ]]; then
+  shift
+  exec "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/scripts/08_report.sh" "$@"
+fi
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 usage() {
 cat <<'HELP'

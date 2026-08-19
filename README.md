@@ -696,6 +696,39 @@ Outputs are written to `analysis/<mode>/<profile>/`. `trials.csv` is the canonic
 
 Analysis can be made automatic with `AUTO_ANALYZE=1`, but the repository default is `0`; explicit analysis is safer for sharded runs.
 
+## Generate the Excel report
+
+After analyzer outputs exist, build a presentation-ready `.xlsx` workbook directly from the canonical CSV/JSON analysis tables:
+
+```bash
+./lab.sh report full all
+```
+
+The default output is:
+
+```text
+analysis/full/SWE-EvalPressure_full_report.xlsx
+```
+
+The workbook is a **reporting layer only**: it does not re-parse Harbor trajectories, re-run the semantic judge, or construct a second set of matched comparisons. It derives its summaries and native Excel charts from `trials.csv`, `matched_pairs.csv`, and the analyzer's supporting tables. It keeps infrastructure/setup outcomes separate from substantive verifier outcomes and omits semantic figures when semantic judgments are not present instead of guessing.
+
+Useful variants:
+
+```bash
+# One profile only
+./lab.sh report full llama
+
+# Resource-deprivation study
+./lab.sh report resource all
+
+# Explicit analyzer/output locations
+./lab.sh report full all \
+  --analysis-root /path/to/analysis \
+  --output /path/to/report.xlsx
+```
+
+The generated workbook includes an overview dashboard, coverage/terminal status, verifier performance, semantic awareness and pressure summaries when available, matched effects, tool use, integrity indicators, raw canonical trial/matched-pair tables, analyzer-native supporting tables, and a conservative claims guide.
+
 ## Validation
 
 `./lab.sh validate` checks that:
