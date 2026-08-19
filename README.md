@@ -10,8 +10,15 @@ This is the shortest supported path for a fresh machine. Run these blocks in ord
 
 ### 0. Clone and create the pinned host environment
 
+The repository is private. Accept the GitHub collaborator invitation before cloning. The SSH command below assumes GitHub SSH access is already configured on the machine; otherwise use the authenticated HTTPS clone shown below.
+
 ```bash
+# SSH
 git clone git@github.com:ibrikk/swe-eval-pressure.git
+
+# Or authenticated HTTPS
+# git clone https://github.com/ibrikk/swe-eval-pressure.git
+
 cd swe-eval-pressure
 
 command -v uv >/dev/null 2>&1 || curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -25,9 +32,9 @@ harbor --version
 modal --version
 ```
 
-Expected host runtime includes Harbor `0.20.0`. The repository pins host dependencies in `pyproject.toml` / `uv.lock`.
+`uv python install 3.13` installs the pinned Python runtime, and `uv sync --locked` installs the repository-local host dependencies from `pyproject.toml` / `uv.lock`, including Harbor `0.20.0` and Modal. No separate Harbor or Modal package installation is required. Keep `.venv` activated when running benchmark commands.
 
-Authenticate Modal once on a new machine:
+`modal setup` authenticates the installed Modal CLI. Run it once on a new machine:
 
 ```bash
 modal setup
@@ -276,13 +283,19 @@ Host requirements:
 - a Modal account / authentication;
 - access to an OpenAI-compatible LiteLLM gateway.
 
-Harbor, Modal, Python, and the remaining host-side Python dependencies are installed into the repo-local environment from the committed `pyproject.toml` / `uv.lock`:
+The host runtime is repository-local: `uv python install 3.13` installs Python 3.13, and `uv sync --locked` installs the pinned host dependencies from the committed `pyproject.toml` / `uv.lock`, including Harbor `0.20.0` and Modal. No system-wide Harbor or Modal installation is required.
 
 ```bash
 command -v uv >/dev/null 2>&1 || curl -LsSf https://astral.sh/uv/install.sh | sh
 uv python install 3.13
 uv sync --locked
 source .venv/bin/activate
+```
+
+On a fresh machine, authenticate the installed Modal CLI:
+
+```bash
+modal setup
 ```
 
 Create the local environment file and add the required gateway credential(s):
