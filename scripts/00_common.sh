@@ -63,7 +63,7 @@ load_env() {
   if [[ "$CODEX_AGENT" == "codex" ]]; then
     export CODEX_AGENT="custom_agents.bootstrap_compatible_codex:BootstrapCompatibleCodex"
   fi
-  if [[ "$LLAMA_AGENT" == "custom_agents.llama_textbased_mini_swe:LlamaTextBasedMiniSweAgent" ]]; then
+  if [[ "$LLAMA_AGENT" == "custom_agents.llama_textbased_mini_swe:LlamaTextBasedMiniSweAgent" || "$LLAMA_AGENT" == "custom_agents.patched_mini_swe:PatchedMiniSweAgent" ]]; then
     export LLAMA_AGENT="custom_agents.bootstrap_compatible_llama:BootstrapCompatibleLlamaTextBasedMiniSweAgent"
   fi
   export LLAMA_MODEL="${LLAMA_MODEL:-openai/llmengine/llama-3-3-70b-instruct}"
