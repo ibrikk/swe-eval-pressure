@@ -2,7 +2,7 @@
 
 SWE-EvalPressure is a controlled benchmark for studying how coding agents behave when they have explicit evidence that they are being evaluated and are placed under different forms of pressure. It is built on the 70 SWE-Atlas refactoring tasks and preserves the original task instructions, tests, gold solutions, and verifier logic.
 
-The benchmark changes only the repository context presented to the agent.
+The experimental conditions change only the repository context presented to the agent. Harness-level compatibility wrappers normalize agent installation across heterogeneous task images; they do not change the task instructions, tests, verifier logic, or agent run/solver behavior.
 
 ## Quick start: clone → smoke → full → analyze
 
@@ -43,7 +43,7 @@ nano .env
 ./lab.sh inventory
 ```
 
-Fill in the required gateway credential(s) in .env, save the file, and do not commit it. .env is gitignored.
+Fill in the required gateway credential(s) in `.env`, save the file, and do not commit it. `.env` is gitignored.
 
 Expected:
 
@@ -77,7 +77,7 @@ PROFILES="claude fable codex llama" ./lab.sh prepare pilot
 
 ### 3. Agent/bootstrap smoke — install only
 
---install-only does not execute benchmark model trajectories. Harbor therefore reports Trials 0 by design. A successful smoke is indicated by all setup attempts completing with 0 exceptions.
+`--install-only` does not execute benchmark model trajectories. Harbor therefore reports `Trials 0` by design. A successful smoke is indicated by all setup attempts completing with `0 exceptions`.
 
 ```bash
 for profile in claude fable codex llama; do
@@ -268,20 +268,29 @@ With all 70 base tasks this produces **210 trajectories per model profile**.
 
 ## Setup
 
-Requirements:
+Host requirements:
 
-- Harbor
-- Modal
-- Python 3
-- access to an OpenAI-compatible LiteLLM gateway
+- Git and `curl`;
+- a Modal account / authentication;
+- access to an OpenAI-compatible LiteLLM gateway.
 
-Create the local environment file:
+Harbor, Modal, Python, and the remaining host-side Python dependencies are installed into the repo-local environment from the committed `pyproject.toml` / `uv.lock`:
+
+```bash
+command -v uv >/dev/null 2>&1 || curl -LsSf https://astral.sh/uv/install.sh | sh
+uv python install 3.13
+uv sync --locked
+source .venv/bin/activate
+```
+
+Create the local environment file and add the required gateway credential(s):
 
 ```bash
 cp .env.example .env
+nano .env
 ```
 
-Add the LiteLLM key to `.env`. The repository does not contain credentials.
+The repository does not contain credentials, and `.env` is gitignored.
 
 The default profiles are:
 
@@ -292,6 +301,15 @@ The default profiles are:
 
 The Llama profile uses Mini-SWE's text-based command parser rather than provider-native function calling. This avoids structured tool-call failures seen with the earlier Groq configuration.
 
+### Bootstrap compatibility wrappers
+
+Two committed wrappers make agent installation reproducible across the heterogeneous SWE-Atlas task images while leaving agent execution behavior inherited from the underlying Harbor/benchmark agents:
+
+- **Codex:** `BootstrapCompatibleCodex` inherits Harbor's Codex agent, pins Codex CLI `0.147.0`, and adds `GIT_ALLOW_PROTOCOL=file:https` only to the agent-install subprocess so NVM can bootstrap in images whose task/test environment restricts Git transport. The task/verifier environment is not rewritten.
+- **Llama / Mini-SWE:** `BootstrapCompatibleLlamaTextBasedMiniSweAgent` inherits the benchmark's existing text-based Mini-SWE agent, pins Mini-SWE `2.4.5` and LiteLLM core `1.83.0`, and omits Harbor's `litellm[proxy]` server extra because this benchmark uses an external LiteLLM gateway. The proxy extra introduced a `pyroscope-io` source-packaging failure on a musl task image and is not required for Mini-SWE's client use.
+
+These are bootstrap/harness compatibility changes, not benchmark treatments. If either wrapper's solver-visible behavior, executable version, permissions, task image, or verifier environment is changed in future work, treat that as an experimental change rather than a transparent retry.
+
 Useful runtime and gateway checks:
 
 ```bash
@@ -300,7 +318,7 @@ Useful runtime and gateway checks:
 ./lab.sh llama-doctor  # Harbor-Python import + Llama route/format probe
 ```
 
-`doctor` loads the same environment aliases used by benchmark runs, verifies the custom Llama agent with Harbor's own Python interpreter, checks config files, shell syntax, and Python compilation, and warns when the Codex CLI version is not pinned.
+`doctor` loads the same environment aliases used by benchmark runs, verifies both bootstrap-compatible wrappers with Harbor's own Python interpreter, checks the pinned Codex/Mini-SWE/LiteLLM versions, config files, shell syntax, and Python compilation.
 
 ## Generate and validate a run
 
@@ -342,7 +360,7 @@ Run one profile:
 
 Harbor supports `--install-only`, which builds the task environment and installs the selected agent without running the model. Use this before expensive runs when task images may differ in package managers, Git policy, or build toolchains.
 
-For example, to reproduce the task-image families that exposed Codex NVM/Git-HTTPS and Mini-SWE/Cargo setup failures during development, select them explicitly and run install-only at low concurrency:
+For example, to reproduce the task-image families that exposed the Codex NVM/Git-HTTPS bootstrap incompatibility and the Mini-SWE `litellm[proxy]`/Pyroscope packaging incompatibility on a musl image during development, select them explicitly and run install-only at low concurrency:
 
 ```bash
 BENCHMARK_TASK_IDS="task-69d196f015a150488265afc2,task-69d196f015a150488265afc3,task-69d196f015a150488265afc4,task-69d196f015a150488265afba,task-696719205599a51110d4b446" \
@@ -368,7 +386,7 @@ Use the repository wrapper rather than calling `harbor job resume` directly:
 
 The wrapper reloads the canonical LiteLLM aliases and repo `PYTHONPATH`, keeps `config.json` and `lock.json` concurrency synchronized, backs both files up under `results/_resume_provenance/`, and records resume history in `run_metadata.json`. Default retry filters are profile-specific and limited to failures that are normally infrastructural.
 
-`NonZeroAgentExitCodeError` is **not retried by default** because it can be a deterministic agent-install/setup incompatibility (for example an image that blocks Git HTTPS during NVM installation or lacks Cargo for a Mini-SWE dependency). After classifying and fixing the cause, an explicit retry is possible with `--retry-nonzero`. `AgentSafetyRefusalError` is never an infrastructure default.
+`NonZeroAgentExitCodeError` is **not retried by default** because it can be a deterministic agent-install/setup incompatibility (for example an image that blocks Git HTTPS during NVM bootstrap or exposes an incompatible dependency/package build path). After classifying and fixing the cause, an explicit retry is possible with `--retry-nonzero`. `AgentSafetyRefusalError` is never an infrastructure default.
 
 Preview a resume without changing files or starting Harbor:
 
@@ -516,7 +534,7 @@ The primary `full` study contains 70 base SWE-Atlas tasks × 10 conditions = **7
 
 Do not start a production run until `doctor` and `validate` pass.
 
-If `doctor` warns that `CODEX_VERSION` is not pinned, establish the exact Codex agent version with a compatibility/smoke run and pin it before starting a production benchmark. Do not silently use an unspecified or moving `latest` version for a production run.
+`doctor` should report the committed Codex CLI pin (`0.147.0`). A missing or different production pin is configuration drift and should be resolved before launching the benchmark; do not silently use Harbor's moving `latest` version.
 
 ### Standard / unknown gateway quota
 
