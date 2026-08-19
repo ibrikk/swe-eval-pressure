@@ -45,11 +45,12 @@ if command -v harbor >/dev/null 2>&1; then
   HARBOR_PY="$(harbor_python)"
   printf '[PASS] Harbor Python %s\n' "$HARBOR_PY"
   if "$HARBOR_PY" - <<'PY'
-from custom_agents.llama_textbased_mini_swe import LlamaTextBasedMiniSweAgent
-print('[PASS] Llama custom agent import under Harbor Python')
+from custom_agents.bootstrap_compatible_codex import BootstrapCompatibleCodex
+from custom_agents.bootstrap_compatible_llama import BootstrapCompatibleLlamaTextBasedMiniSweAgent
+print('[PASS] bootstrap-compatible Codex/Llama imports under Harbor Python')
 PY
   then :; else
-    printf '[FAIL] Llama custom agent import under Harbor Python\n'
+    printf '[FAIL] bootstrap-compatible Codex/Llama import under Harbor Python\n'
     fail=1
   fi
 fi
@@ -75,6 +76,13 @@ if python3 -m compileall -q scripts custom_agents; then
   printf '[PASS] Python compilation\n'
 else
   printf '[FAIL] Python compilation\n'
+  fail=1
+fi
+
+if [[ -n "${MINI_SWE_LITELLM_VERSION:-}" ]]; then
+  printf '[PASS] MINI_SWE_LITELLM_VERSION pinned: %s\n' "$MINI_SWE_LITELLM_VERSION"
+else
+  printf '[FAIL] MINI_SWE_LITELLM_VERSION is not pinned\n'
   fail=1
 fi
 

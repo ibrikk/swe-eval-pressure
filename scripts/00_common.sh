@@ -54,12 +54,21 @@ load_env() {
   export FABLE_AGENT="${FABLE_AGENT:-claude-code}"
   export FABLE_MODEL="${FABLE_MODEL:-anthropic/claude-fable-5}"
   export FABLE_INSTRUCTION_FILE="${FABLE_INSTRUCTION_FILE:-CLAUDE.md}"
-  export CODEX_AGENT="${CODEX_AGENT:-codex}"
+  export CODEX_AGENT="${CODEX_AGENT:-custom_agents.bootstrap_compatible_codex:BootstrapCompatibleCodex}"
   export CODEX_MODEL="${CODEX_MODEL:-openai/gpt-5.6}"
   export CODEX_INSTRUCTION_FILE="${CODEX_INSTRUCTION_FILE:-AGENTS.md}"
-  export LLAMA_AGENT="${LLAMA_AGENT:-custom_agents.llama_textbased_mini_swe:LlamaTextBasedMiniSweAgent}"
+  export CODEX_VERSION="${CODEX_VERSION:-0.147.0}"
+  export LLAMA_AGENT="${LLAMA_AGENT:-custom_agents.bootstrap_compatible_llama:BootstrapCompatibleLlamaTextBasedMiniSweAgent}"
+  # Migrate legacy local .env agent identifiers to setup-compatible wrappers.
+  if [[ "$CODEX_AGENT" == "codex" ]]; then
+    export CODEX_AGENT="custom_agents.bootstrap_compatible_codex:BootstrapCompatibleCodex"
+  fi
+  if [[ "$LLAMA_AGENT" == "custom_agents.llama_textbased_mini_swe:LlamaTextBasedMiniSweAgent" ]]; then
+    export LLAMA_AGENT="custom_agents.bootstrap_compatible_llama:BootstrapCompatibleLlamaTextBasedMiniSweAgent"
+  fi
   export LLAMA_MODEL="${LLAMA_MODEL:-openai/llmengine/llama-3-3-70b-instruct}"
   export MINI_SWE_VERSION="${MINI_SWE_VERSION:-2.4.5}"
+  export MINI_SWE_LITELLM_VERSION="${MINI_SWE_LITELLM_VERSION:-1.83.0}"
   export LLAMA_INSTRUCTION_FILE="${LLAMA_INSTRUCTION_FILE:-AGENTS.md}"
   export CODEX_CONFIG_FILE="${CODEX_CONFIG_FILE:-$PROJECT_ROOT/config/codex_scale_http.toml}"
   export LLAMA_CONFIG_FILE="${LLAMA_CONFIG_FILE:-$PROJECT_ROOT/config/mswea_rf_llama.yaml}"

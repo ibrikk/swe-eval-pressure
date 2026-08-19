@@ -1,0 +1,11 @@
+[project]
+name = "swe-eval-pressure-runtime"
+version = "0.1.0"
+description = "Pinned host runtime for the SWE-EvalPressure benchmark harness"
+requires-python = ">=3.13,<3.14"
+dependencies = [
+  "harbor[modal]==0.20.0",
+]
+
+[tool.uv]
+package = false
