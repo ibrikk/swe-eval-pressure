@@ -819,10 +819,14 @@ def terminal_status(result: dict[str, Any]) -> tuple[str, str, str]:
         status = "safety_refusal"
     elif "ratelimit" in low_typ or "rate limit" in low:
         status = "rate_limit"
+    elif "imagebuilderror" in low_typ or "image build" in low:
+        status = "environment_error"
     elif "remoteerror" in low_typ and ("image build" in low or "modal" in low):
         status = "environment_error"
     elif "apiconnection" in low_typ or "api" in low_typ and ("connection" in low_typ or "closed" in low_typ):
         status = "api_error"
+    elif "environmentstarttimeout" in low_typ:
+        status = "environment_error"
     elif "timeout" in low_typ or "timed out" in low:
         status = "timeout"
     elif "environment" in low_typ or "docker" in low_typ or "modal" in low_typ:
@@ -1809,6 +1813,9 @@ def main() -> None:
     parser.add_argument("--mode", choices=["pilot", "sample", "full", "resource"], required=True)
     parser.add_argument("--profile", required=True)
     parser.add_argument("--results-dir", type=Path, help="Directory containing compatible run directories, or one exact run directory.")
+    parser.add_argument("--run-dir", type=Path, action="append", default=[], help="Explicit Harbor run directory to include in a provenance-aware reconstruction. Repeat once per accepted run.")
+    parser.add_argument("--strict-reconstruction", action="store_true", help="Require exactly one substantive outcome per planned task except explicitly allowlisted censored tasks.")
+    parser.add_argument("--censored-task-allowlist", type=Path, help="Newline-delimited task identities that are explicitly permitted to remain infrastructure-censored in strict reconstruction.")
     parser.add_argument("--manifest", type=Path, help="Advanced fallback manifest for legacy/external results.")
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--live", action="store_true", help="Mark/report the analysis as intentionally partial while a run is still active.")
@@ -1825,12 +1832,34 @@ def main() -> None:
     semantic_default = os.getenv("ANALYSIS_USE_LLM", "1") == "1"
     semantic_requested = True if args.semantic else False if args.no_semantic else semantic_default
     semantic_enabled = semantic_requested
-    selected_runs, excluded_runs, warnings = discover_runs(
-        project_root, results_dir, args.mode, args.profile, args.manifest.resolve() if args.manifest else None,
-        explicit_results_dir=bool(args.results_dir),
-    )
+    if args.run_dir:
+        if not args.manifest:
+            raise SystemExit("--run-dir reconstruction requires --manifest so every accepted run is evaluated against the same planned study.")
+        selected_runs = []
+        excluded_runs = []
+        warnings = []
+        for explicit_run in args.run_dir:
+            run_selected, run_excluded, run_warnings = discover_runs(
+                project_root,
+                explicit_run.resolve(),
+                args.mode,
+                args.profile,
+                args.manifest.resolve(),
+                explicit_results_dir=True,
+            )
+            if len(run_selected) != 1:
+                raise SystemExit(f"Expected exactly one analyzable run from --run-dir {explicit_run}, found {len(run_selected)}.")
+            selected_runs.extend(run_selected)
+            excluded_runs.extend(run_excluded)
+            warnings.extend(run_warnings)
+        warnings.append(f"Explicit provenance-aware reconstruction from {len(selected_runs)} accepted run directories.")
+    else:
+        selected_runs, excluded_runs, warnings = discover_runs(
+            project_root, results_dir, args.mode, args.profile, args.manifest.resolve() if args.manifest else None,
+            explicit_results_dir=bool(args.results_dir),
+        )
     if not selected_runs:
-        raise SystemExit(f"No analyzable {args.mode}/{args.profile} runs found under {results_dir}")
+        raise SystemExit(f"No analyzable {args.mode}/{args.profile} runs found.")
 
     if semantic_enabled and (not os.getenv("LITE_LLM_KEY") or not os.getenv("LITE_LLM_URL")):
         warnings.append("LLM semantic coding was requested but LiteLLM credentials are unavailable; continuing with deterministic analysis only.")
@@ -1838,13 +1867,70 @@ def main() -> None:
 
     planned, plan_warnings = merge_planned_tasks(selected_runs)
     warnings.extend(plan_warnings)
-    signature = selected_runs[0].signature
+    signature = (
+        canonical_json_hash({
+            "explicit_run_signatures": sorted({run.signature for run in selected_runs}),
+            "accepted_run_directories": [str(run.root) for run in selected_runs],
+        })
+        if args.run_dir
+        else selected_runs[0].signature
+    )
     repeats_values = {as_int(run.metadata.get("harbor_repeats")) or 1 for run in selected_runs}
     if len(repeats_values) != 1:
         raise SystemExit(f"Selected compatible run group has inconsistent HARBOR_REPEATS values: {sorted(repeats_values)}")
     repeats = next(iter(repeats_values))
 
     candidates = collect_result_candidates(selected_runs, planned)
+
+    allowed_censored_tasks: set[str] = set()
+    if args.censored_task_allowlist:
+        allowed_censored_tasks = {
+            line.strip()
+            for line in args.censored_task_allowlist.read_text().splitlines()
+            if line.strip() and not line.strip().startswith("#")
+        }
+        unknown_allowed = sorted(allowed_censored_tasks - set(planned))
+        if unknown_allowed:
+            raise SystemExit(
+                "Censored-task allowlist contains identities absent from the study manifest: "
+                + ", ".join(unknown_allowed)
+            )
+
+    if args.strict_reconstruction and repeats <= 1:
+        violations = []
+        for task_name in sorted(planned):
+            items = candidates.get(task_name, [])
+            substantive = [item for item in items if substantive_status(item["status"])]
+
+            if task_name in allowed_censored_tasks:
+                if not items:
+                    violations.append(f"{task_name}: allowlisted censored task has no result candidate")
+                elif substantive:
+                    violations.append(
+                        f"{task_name}: allowlisted censored task unexpectedly has {len(substantive)} substantive candidate(s)"
+                    )
+                continue
+
+            if not items:
+                violations.append(f"{task_name}: no result candidate")
+            elif len(substantive) == 0:
+                violations.append(
+                    f"{task_name}: no substantive outcome; observed statuses {[item["status"] for item in items]}"
+                )
+            elif len(substantive) > 1:
+                violations.append(
+                    f"{task_name}: {len(substantive)} substantive candidates"
+                )
+
+        if violations:
+            preview = "\n".join(violations[:20])
+            extra = f"\n... and {len(violations) - 20} more" if len(violations) > 20 else ""
+            raise SystemExit(
+                "Strict reconstruction invariant failed:\n"
+                + preview
+                + extra
+            )
+
     selected_candidates, duplicate_rows, dup_warnings = select_candidates(candidates, repeats)
     warnings.extend(dup_warnings)
 
@@ -1911,6 +1997,9 @@ def main() -> None:
         "profile": args.profile,
         "study_signature": signature,
         "live": bool(args.live),
+        "strict_reconstruction": bool(args.strict_reconstruction),
+        "censored_task_allowlist": sorted(allowed_censored_tasks),
+        "censored_task_allowlist_path": str(args.censored_task_allowlist.resolve()) if args.censored_task_allowlist else None,
         "semantic_requested": semantic_requested,
         "semantic_enabled": semantic_enabled,
         "harbor_repeats": repeats,
