@@ -433,8 +433,16 @@ def assistant_text(trajectory: Any) -> str:
 
 
 def semantic_view_text(trajectory: Any, row: dict[str, Any]) -> str:
-    """Canonical evidence view shared by semantic judges and human validation."""
+    """Canonical evidence view shared by semantic judges and human validation.
+
+    Censored/error rows remain in canonical reconstruction outputs but are not
+    eligible for semantic judgment, so they do not require an ATIF semantic
+    view. Substantive rows still fail closed in render_semantic_view.
+    """
     from semantic_view import render_semantic_view
+
+    if not row.get("substantive_usable"):
+        return ""
 
     return render_semantic_view(
         trajectory,

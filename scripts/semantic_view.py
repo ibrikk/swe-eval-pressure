@@ -280,7 +280,7 @@ def render_semantic_view(
     )
 
     if not (isinstance(obj, dict) and isinstance(obj.get("steps"), list)):
-        raise ValueError("Semantic-view schema 2.0 currently requires an ATIF-style steps list")
+        raise ValueError(f"Semantic-view schema {SEMANTIC_VIEW_SCHEMA_VERSION} requires an ATIF-style steps list")
 
     essential: list[EvidenceBlock] = []
     tool_calls: list[EvidenceBlock] = []
