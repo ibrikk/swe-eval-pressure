@@ -1439,15 +1439,23 @@ def semantic_judgments(
 
     model = os.getenv("ANALYSIS_MODEL", "openai/gpt-5.6")
     max_chars = int(os.getenv("ANALYSIS_MAX_CHARS", "0"))
+    workers = max(1, int(os.getenv("ANALYSIS_SEMANTIC_WORKERS", "1")))
     cache = dict(old)
     semantic_limit = int(os.getenv("ANALYSIS_SEMANTIC_LIMIT", "0"))
-    semantic_eligible_seen = 0
-    for idx, row in enumerate(rows, start=1):
+
+    eligible_rows: list[dict[str, Any]] = []
+    for row in rows:
         if not row.get("substantive_usable"):
             continue
-        semantic_eligible_seen += 1
-        if semantic_limit and semantic_eligible_seen > semantic_limit:
-            continue
+        eligible_rows.append(row)
+        if semantic_limit and len(eligible_rows) >= semantic_limit:
+            break
+
+    total = len(eligible_rows)
+    cached_current = 0
+    pending: list[tuple[dict[str, Any], str, str, str, dict[str, Any]]] = []
+
+    for row in eligible_rows:
         trial_name = str(row["trial_name"])
         assistant, trajectory_hash = semantic_inputs.get(trial_name, ("", ""))
         key = semantic_cache_key(trial_name, trajectory_hash, model)
@@ -1458,14 +1466,37 @@ def semantic_judgments(
             and existing.get("model") == model
             and existing.get("judge_version") == SEMANTIC_JUDGE_VERSION
         ):
+            cached_current += 1
             continue
+
         payload = {
             "evaluation_cue_text_reference": row.get("eval_cue_text", ""),
             "semantic_trajectory": semantic_excerpt(assistant, max_chars),
         }
-        judgment = call_semantic_judge(payload)
-        from semantic_view import SEMANTIC_VIEW_SCHEMA_VERSION
+        pending.append((row, trial_name, trajectory_hash, key, payload))
 
+    profile = str(eligible_rows[0].get("profile", "")) if eligible_rows else "unknown"
+    print(
+        f"[semantic:{profile}] {cached_current}/{total} already cached; "
+        f"{len(pending)} remaining; workers={workers}",
+        flush=True,
+    )
+
+    if not pending:
+        write_json(cache_path, cache)
+        return cache
+
+    from semantic_view import SEMANTIC_VIEW_SCHEMA_VERSION
+
+    completed_new = 0
+
+    def store_result(
+        trial_name: str,
+        trajectory_hash: str,
+        key: str,
+        judgment: dict[str, Any],
+    ) -> None:
+        nonlocal completed_new
         cache[key] = {
             "trial_name": trial_name,
             "trajectory_hash": trajectory_hash,
@@ -1475,8 +1506,40 @@ def semantic_judgments(
             "semantic_view_version": SEMANTIC_VIEW_SCHEMA_VERSION,
             "judgment": judgment,
         }
-        if idx % 10 == 0:
+        completed_new += 1
+        done = cached_current + completed_new
+        if completed_new % 10 == 0 or done == total:
             write_json(cache_path, cache)
+            print(
+                f"[semantic:{profile}] {done}/{total} "
+                f"({100.0 * done / total:.1f}%)",
+                flush=True,
+            )
+
+    if workers == 1:
+        for _, trial_name, trajectory_hash, key, payload in pending:
+            judgment = call_semantic_judge(payload)
+            store_result(trial_name, trajectory_hash, key, judgment)
+    else:
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
+        future_map = {}
+        with ThreadPoolExecutor(max_workers=workers) as executor:
+            for _, trial_name, trajectory_hash, key, payload in pending:
+                future = executor.submit(call_semantic_judge, payload)
+                future_map[future] = (trial_name, trajectory_hash, key)
+
+            for future in as_completed(future_map):
+                trial_name, trajectory_hash, key = future_map[future]
+                try:
+                    judgment = future.result()
+                except Exception as error:
+                    judgment = {
+                        "status": "error",
+                        "error": f"{type(error).__name__}: {error}",
+                    }
+                store_result(trial_name, trajectory_hash, key, judgment)
+
     write_json(cache_path, cache)
     return cache
 
