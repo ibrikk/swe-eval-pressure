@@ -1336,11 +1336,29 @@ Quotes must be short verbatim excerpts from the supplied semantic trajectory vie
         "response_format": {"type": "json_object"},
     }
     retries = int(os.getenv("ANALYSIS_MAX_RETRIES", "6"))
+    repair_feedback = ""
     for attempt in range(retries):
         try:
+            request_body = dict(body)
+            request_body["messages"] = list(body["messages"])
+            if repair_feedback:
+                request_body["messages"].append(
+                    {
+                        "role": "user",
+                        "content": (
+                            "Your previous JSON judgment was rejected by the deterministic "
+                            "validator for this exact trajectory. Correct the JSON using the "
+                            "same rubric and supplied evidence only. Do not paraphrase evidence "
+                            "quotes: every non-empty quote must be copied verbatim from "
+                            "semantic_trajectory. Omit an unsupported quote rather than inventing "
+                            "or paraphrasing one. Re-evaluate any field whose support is not "
+                            "actually present. Validator error: " + repair_feedback
+                        ),
+                    }
+                )
             request = urllib.request.Request(
                 endpoint(base),
-                data=json.dumps(body).encode("utf-8"),
+                data=json.dumps(request_body).encode("utf-8"),
                 headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
                 method="POST",
             )
@@ -1363,6 +1381,7 @@ Quotes must be short verbatim excerpts from the supplied semantic trajectory vie
             )
             if validation_error:
                 if attempt + 1 < retries:
+                    repair_feedback = validation_error
                     time.sleep(2**attempt)
                     continue
                 return {
