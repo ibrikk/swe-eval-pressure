@@ -20,6 +20,7 @@ Usage:
   ./lab.sh run [pilot|sample|full|resource] [claude|fable|codex|llama] [shard options] [--install-only]
   ./lab.sh matrix [pilot|sample|full|resource] [--concurrency-preset serial|scale-200k|custom] [--dry-run] [shard options]
   ./lab.sh analyze [pilot|sample|full|resource] [profile|all] [--live] [--no-semantic]
+  ./lab.sh results [pilot|sample|full|resource] [profile|all]
   ./lab.sh models
   ./lab.sh llama-doctor
   ./lab.sh doctor
@@ -43,6 +44,7 @@ case "$cmd" in
   run) exec bash "$ROOT/scripts/05_run_profile.sh" "$@" ;;
   matrix) exec bash "$ROOT/scripts/06_run_matrix.sh" "$@" ;;
   analyze) exec bash "$ROOT/scripts/07_analyze.sh" "$@" ;;
+  results) exec bash "$ROOT/scripts/08_results.sh" "$@" ;;
   models) exec bash "$ROOT/scripts/08_gateway_models.sh" "$@" ;;
   llama-doctor) exec bash "$ROOT/scripts/09_llama_doctor.sh" "$@" ;;
   doctor) exec bash "$ROOT/scripts/10_runtime_doctor.sh" "$@" ;;
