@@ -28,7 +28,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
-ANALYZER_SCHEMA = "2.0"
+ANALYZER_SCHEMA = "2.1"
 SEMANTIC_JUDGE_VERSION = "2.3"
 
 # ---------------------------------------------------------------------------
@@ -809,6 +809,8 @@ def integrity_metrics(trial: Path, patch: str, item: dict[str, Any]) -> dict[str
 def terminal_status(result: dict[str, Any]) -> tuple[str, str, str]:
     exc = result.get("exception_info")
     if not exc:
+        if result.get("verifier_result") is None:
+            return "verifier_error", "MissingVerifierResult", "Result has no verifier_result despite no recorded exception"
         return "completed", "", ""
     if not isinstance(exc, dict):
         return "agent_error", type(exc).__name__, str(exc)[:500]
