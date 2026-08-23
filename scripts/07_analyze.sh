@@ -11,12 +11,18 @@ load_env
 
 RESULTS_DIR=""
 MANIFEST=""
+RUN_DIRS=()
+STRICT_RECONSTRUCTION=0
+CENSORED_TASK_ALLOWLIST=""
 LIVE=0
 SEMANTIC=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --results-dir) RESULTS_DIR="${2:-}"; shift 2 ;;
     --manifest) MANIFEST="${2:-}"; shift 2 ;;
+    --run-dir) RUN_DIRS+=("${2:-}"); shift 2 ;;
+    --strict-reconstruction) STRICT_RECONSTRUCTION=1; shift ;;
+    --censored-task-allowlist) CENSORED_TASK_ALLOWLIST="${2:-}"; shift 2 ;;
     --live) LIVE=1; shift ;;
     --semantic) SEMANTIC=1; shift ;;
     --no-semantic) SEMANTIC=0; shift ;;
@@ -33,6 +39,8 @@ Use --no-semantic for deterministic-only analysis; --semantic forces it on.
 Advanced:
   ./lab.sh analyze <mode> <profile> --results-dir /path/to/results
   ./lab.sh analyze <mode> <profile> --results-dir /path/to/run --manifest /path/to/manifest.json
+  ./lab.sh analyze <mode> <profile> --run-dir /path/to/run --run-dir /path/to/repair --manifest /path/to/manifest.json
+  ./lab.sh analyze <mode> <profile> --strict-reconstruction --censored-task-allowlist /path/to/allowlist.txt
 
 Analysis is trajectory-first and automatically merges compatible shards. It only
 forms matched effects when both trajectories in a within-task pair are available
@@ -49,6 +57,15 @@ fi
 if [[ "$TARGET" == all && -n "$MANIFEST" ]]; then
   die "--manifest with target=all is ambiguous; analyze one profile at a time"
 fi
+if [[ "$TARGET" == all && "${#RUN_DIRS[@]}" -gt 0 ]]; then
+  die "--run-dir with target=all is ambiguous; analyze one profile at a time"
+fi
+if [[ "$TARGET" == all && "$STRICT_RECONSTRUCTION" == 1 ]]; then
+  die "--strict-reconstruction with target=all requires per-profile provenance; analyze one profile at a time"
+fi
+if [[ "$TARGET" == all && -n "$CENSORED_TASK_ALLOWLIST" ]]; then
+  die "--censored-task-allowlist with target=all requires per-profile provenance; analyze one profile at a time"
+fi
 
 analyze_one() {
   local profile="$1"
@@ -62,6 +79,11 @@ analyze_one() {
   )
   [[ -n "$RESULTS_DIR" ]] && args+=(--results-dir "$RESULTS_DIR")
   [[ -n "$MANIFEST" ]] && args+=(--manifest "$MANIFEST")
+  for run_dir in "${RUN_DIRS[@]}"; do
+    args+=(--run-dir "$run_dir")
+  done
+  [[ "$STRICT_RECONSTRUCTION" == 1 ]] && args+=(--strict-reconstruction)
+  [[ -n "$CENSORED_TASK_ALLOWLIST" ]] && args+=(--censored-task-allowlist "$CENSORED_TASK_ALLOWLIST")
   [[ "$LIVE" == 1 ]] && args+=(--live)
   [[ "$SEMANTIC" == 1 ]] && args+=(--semantic)
   [[ "$SEMANTIC" == 0 ]] && args+=(--no-semantic)
