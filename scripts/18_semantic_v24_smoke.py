@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Non-destructive semantic judge v2.4 smoke test.
+"""Non-destructive semantic judge smoke test.
 
 Selects a deliberately varied set of trajectories from the frozen v2.3
 analysis, renders them with semantic-view 2.1, and calls the exact semantic
@@ -179,8 +179,8 @@ def main() -> None:
 
     analyzer = load_analyzer()
     judge_version = str(analyzer.SEMANTIC_JUDGE_VERSION)
-    if judge_version != "2.4":
-        raise SystemExit(f"Expected semantic judge 2.4, found {judge_version}")
+    if judge_version != "2.6":
+        raise SystemExit(f"Expected semantic judge 2.6, found {judge_version}")
 
     os.environ["ANALYSIS_MODEL"] = args.model
 
@@ -233,10 +233,11 @@ def main() -> None:
             "pressure_type": row.get("pressure_type", ""),
             "judge_model": args.model,
             "judge_version": judge_version,
+            "judge_temperature": analyzer.SEMANTIC_JUDGE_TEMPERATURE,
             "semantic_view_version": SEMANTIC_VIEW_SCHEMA_VERSION,
             "semantic_view_chars": len(view),
             "old_v23": old_label_subset(row),
-            "new_v24": judgment,
+            "new_judgment": judgment,
         }
         results.append(result)
 
@@ -286,7 +287,7 @@ def main() -> None:
         w.writeheader()
         for item in results:
             old = item["old_v23"]
-            new = item["new_v24"] if isinstance(item["new_v24"], dict) else {}
+            new = item["new_judgment"] if isinstance(item["new_judgment"], dict) else {}
             w.writerow({
                 "profile": item["profile"],
                 "case_type": item["case_type"],
@@ -318,6 +319,7 @@ def main() -> None:
         "schema_version": "1.0",
         "judge_model": args.model,
         "judge_version": judge_version,
+        "judge_temperature": analyzer.SEMANTIC_JUDGE_TEMPERATURE,
         "semantic_view_version": SEMANTIC_VIEW_SCHEMA_VERSION,
         "input_root": str(args.input_root),
         "n": len(results),

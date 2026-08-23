@@ -87,7 +87,7 @@ def main() -> None:
         case_type = row["case_type"]
         trial = row["trial_name"]
         old = row.get("old_v23", {})
-        new = row.get("new_v24", {})
+        new = row.get("new_judgment", {})
 
         prefix = f"{idx:02d}_{profile}_{case_type}"
         view_path = args.smoke_dir / f"{prefix}.view.txt"
@@ -220,7 +220,7 @@ def main() -> None:
 
     if discrepancies:
         print(
-            "NOTE: v2.3/v2.4 label discrepancies exist; inspect them before full rerun."
+            "NOTE: v2.3/current-judge label discrepancies exist; inspect them before full rerun."
         )
     else:
         print(
