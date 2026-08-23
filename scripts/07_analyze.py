@@ -1335,7 +1335,7 @@ Quotes must be short verbatim excerpts from the supplied semantic trajectory vie
         ],
         "response_format": {"type": "json_object"},
     }
-    retries = int(os.getenv("ANALYSIS_MAX_RETRIES", "3"))
+    retries = int(os.getenv("ANALYSIS_MAX_RETRIES", "6"))
     for attempt in range(retries):
         try:
             request = urllib.request.Request(
@@ -1374,7 +1374,25 @@ Quotes must be short verbatim excerpts from the supplied semantic trajectory vie
         except urllib.error.HTTPError as error:
             detail = error.read().decode(errors="replace")
             if (error.code == 429 or error.code >= 500) and attempt + 1 < retries:
-                time.sleep(2**attempt)
+                if error.code == 429:
+                    wait_sec = float(2**attempt)
+                    match = re.search(
+                        r"Limit resets at:\s*(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) UTC",
+                        detail,
+                    )
+                    if match:
+                        from datetime import datetime, timezone
+                        reset_at = datetime.strptime(
+                            match.group(1), "%Y-%m-%d %H:%M:%S"
+                        ).replace(tzinfo=timezone.utc)
+                        wait_sec = max(
+                            wait_sec,
+                            (reset_at - datetime.now(timezone.utc)).total_seconds() + 1.0,
+                        )
+                    import random
+                    time.sleep(max(1.0, min(wait_sec, 65.0)) + random.uniform(0.0, 1.5))
+                else:
+                    time.sleep(2**attempt)
                 continue
             return {"status": "error", "error": f"HTTP {error.code}: {detail[:500]}"}
         except Exception as error:
@@ -1452,33 +1470,52 @@ def semantic_judgments(
             break
 
     total = len(eligible_rows)
-    cached_current = 0
-    pending: list[tuple[dict[str, Any], str, str, str, dict[str, Any]]] = []
+    cached_ok = 0
+    stale_or_error = 0
+    pending: list[tuple[str, str, str, dict[str, Any]]] = []
 
     for row in eligible_rows:
         trial_name = str(row["trial_name"])
         assistant, trajectory_hash = semantic_inputs.get(trial_name, ("", ""))
         key = semantic_cache_key(trial_name, trajectory_hash, model)
         existing = cache.get(key)
+
+        existing_valid = False
         if (
             isinstance(existing, dict)
             and existing.get("trajectory_hash") == trajectory_hash
             and existing.get("model") == model
             and existing.get("judge_version") == SEMANTIC_JUDGE_VERSION
+            and int(existing.get("semantic_max_chars", 0) or 0) == max_chars
         ):
-            cached_current += 1
+            judgment = existing.get("judgment")
+            if isinstance(judgment, dict) and judgment.get("status", "ok") == "ok":
+                validation_error = semantic_judgment_validation_error(
+                    judgment,
+                    semantic_excerpt(assistant, max_chars),
+                    str(row.get("eval_cue_text", "") or ""),
+                )
+                existing_valid = validation_error is None
+
+        if existing_valid:
+            cached_ok += 1
             continue
+
+        if existing is not None:
+            stale_or_error += 1
 
         payload = {
             "evaluation_cue_text_reference": row.get("eval_cue_text", ""),
             "semantic_trajectory": semantic_excerpt(assistant, max_chars),
         }
-        pending.append((row, trial_name, trajectory_hash, key, payload))
+        pending.append((trial_name, trajectory_hash, key, payload))
 
     profile = str(eligible_rows[0].get("profile", "")) if eligible_rows else "unknown"
+    import sys
     print(
-        f"[semantic:{profile}] {cached_current}/{total} already cached; "
-        f"{len(pending)} remaining; workers={workers}",
+        f"[semantic:{profile}] OK={cached_ok}/{total} cached; "
+        f"retry/stale={stale_or_error}; remaining={len(pending)}; workers={workers}",
+        file=sys.stderr,
         flush=True,
     )
 
@@ -1487,8 +1524,11 @@ def semantic_judgments(
         return cache
 
     from semantic_view import SEMANTIC_VIEW_SCHEMA_VERSION
+    from concurrent.futures import ThreadPoolExecutor, as_completed
 
-    completed_new = 0
+    attempts_done = 0
+    ok_new = 0
+    error_new = 0
 
     def store_result(
         trial_name: str,
@@ -1496,7 +1536,8 @@ def semantic_judgments(
         key: str,
         judgment: dict[str, Any],
     ) -> None:
-        nonlocal completed_new
+        nonlocal attempts_done, ok_new, error_new
+
         cache[key] = {
             "trial_name": trial_name,
             "trajectory_hash": trajectory_hash,
@@ -1504,28 +1545,36 @@ def semantic_judgments(
             "judge_version": SEMANTIC_JUDGE_VERSION,
             "judge_temperature": SEMANTIC_JUDGE_TEMPERATURE,
             "semantic_view_version": SEMANTIC_VIEW_SCHEMA_VERSION,
+            "semantic_max_chars": max_chars,
             "judgment": judgment,
         }
-        completed_new += 1
-        done = cached_current + completed_new
-        if completed_new % 10 == 0 or done == total:
+
+        attempts_done += 1
+        if isinstance(judgment, dict) and judgment.get("status", "ok") == "ok":
+            ok_new += 1
+        else:
+            error_new += 1
+
+        if attempts_done % 10 == 0 or attempts_done == len(pending):
             write_json(cache_path, cache)
+            ok_total = cached_ok + ok_new
+            remaining = total - ok_total
             print(
-                f"[semantic:{profile}] {done}/{total} "
-                f"({100.0 * done / total:.1f}%)",
+                f"[semantic:{profile}] OK={ok_total}/{total} "
+                f"({100.0 * ok_total / total:.1f}%) "
+                f"ERROR={error_new} remaining={remaining}",
+                file=sys.stderr,
                 flush=True,
             )
 
     if workers == 1:
-        for _, trial_name, trajectory_hash, key, payload in pending:
+        for trial_name, trajectory_hash, key, payload in pending:
             judgment = call_semantic_judge(payload)
             store_result(trial_name, trajectory_hash, key, judgment)
     else:
-        from concurrent.futures import ThreadPoolExecutor, as_completed
-
         future_map = {}
         with ThreadPoolExecutor(max_workers=workers) as executor:
-            for _, trial_name, trajectory_hash, key, payload in pending:
+            for trial_name, trajectory_hash, key, payload in pending:
                 future = executor.submit(call_semantic_judge, payload)
                 future_map[future] = (trial_name, trajectory_hash, key)
 
@@ -1541,6 +1590,13 @@ def semantic_judgments(
                 store_result(trial_name, trajectory_hash, key, judgment)
 
     write_json(cache_path, cache)
+
+    if error_new:
+        raise RuntimeError(
+            f"Semantic judge left {error_new} non-OK result(s) for {profile}; "
+            "rerun to retry them. Successful judgments remain cached."
+        )
+
     return cache
 
 

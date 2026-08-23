@@ -77,6 +77,7 @@ mkdir -p "$PROJECT_ROOT/analysis/$MODE"
 combined="$PROJECT_ROOT/analysis/$MODE/report-all.md"
 : > "$combined"
 ok=0
+failures=0
 for profile in $PROFILES; do
   echo "# $profile" >> "$combined"
   echo >> "$combined"
@@ -85,8 +86,11 @@ for profile in $PROFILES; do
     ok=1
   else
     echo "No analyzable run." >> "$combined"
+    failures=$((failures + 1))
   fi
   printf '\n---\n\n' >> "$combined"
 done
 [[ "$ok" == 1 ]] || die "no analyzable profile results found"
+[[ "$failures" == 0 ]] || die "$failures profile analysis run(s) failed; inspect stderr and semantic cache status"
+
 echo "Combined report: $combined"
