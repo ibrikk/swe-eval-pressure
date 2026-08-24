@@ -149,7 +149,24 @@ llama   1
 total  14
 ```
 
-For upgraded 5M keys, use `LITE_LLM_TPM_LIMIT=5000000` with `--concurrency-preset scale-5m`. If `LITE_LLM_KEYS` contains multiple keys, the runner automatically partitions each selected dataset across them and the displayed concurrency is applied per key.
+For upgraded 5M TPM keys, first set the key pool and per-key quota in `.env`:
+
+```bash
+export LITE_LLM_KEYS="key1,key2,key3"
+export LITE_LLM_TPM_LIMIT=5000000
+```
+
+Then preview the first full-study shard with the 5M preset:
+
+```bash
+./lab.sh matrix full \
+  --concurrency-preset scale-5m \
+  --shard-size 30 \
+  --shard-index 1 \
+  --dry-run
+```
+
+`scale-5m` applies Claude=20, Fable=16, Codex=16, and Llama=4 **per key**. If `LITE_LLM_KEYS` contains multiple keys, the runner automatically partitions each selected dataset across them.
 
 For an unknown or smaller quota:
 
@@ -172,7 +189,18 @@ for shard in 1 2 3; do
 done
 ```
 
-The shards are `30 / 30 / 10` complete base-task families, corresponding to `300 / 300 / 100` trajectories per model. Do not launch the three shards simultaneously.
+For upgraded 5M TPM keys, use the same three sequential shards with the `scale-5m` preset:
+
+```bash
+for shard in 1 2 3; do
+  caffeinate -dimsu ./lab.sh matrix full \
+    --concurrency-preset scale-5m \
+    --shard-size 30 \
+    --shard-index "$shard"
+done
+```
+
+The shards are `30 / 30 / 10` complete base-task families, corresponding to `300 / 300 / 100` trajectories per model. Do not launch the three shards simultaneously. With a multi-key pool, each shard is automatically partitioned across the configured keys.
 
 ### 7. Analyze
 
