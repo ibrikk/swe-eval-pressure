@@ -9,6 +9,45 @@ require_command() { command -v "$1" >/dev/null 2>&1 || die "missing required com
 require_file() { [[ -f "$1" ]] || die "missing $2: $1"; }
 require_dir() { [[ -d "$1" ]] || die "missing $2: $1"; }
 
+LITELLM_KEYS_PARSED=()
+parse_litellm_key_pool() {
+  LITELLM_KEYS_PARSED=()
+  local raw="${LITE_LLM_KEYS:-}" key seen existing
+  [[ -n "${raw//[[:space:]]/}" ]] || raw="${LITE_LLM_KEY:-}"
+  raw="${raw//,/ }"
+  for key in $raw; do
+    [[ -n "$key" ]] || continue
+    seen=0
+    for existing in "${LITELLM_KEYS_PARSED[@]:-}"; do
+      if [[ "$existing" == "$key" ]]; then seen=1; break; fi
+    done
+    [[ "$seen" == 1 ]] || LITELLM_KEYS_PARSED+=("$key")
+  done
+}
+
+set_litellm_aliases() {
+  export OPENAI_API_KEY="${LITE_LLM_KEY:-}"
+  export OPENAI_API_BASE="${LITE_LLM_URL:-}"
+  export OPENAI_BASE_URL="${LITE_LLM_URL:-}"
+  export ANTHROPIC_API_KEY="${LITE_LLM_KEY:-}"
+  export ANTHROPIC_AUTH_TOKEN="${LITE_LLM_KEY:-}"
+  export ANTHROPIC_BASE_URL="${LITE_LLM_URL_ANTHROPIC:-${LITE_LLM_URL:-}}"
+  export GEMINI_API_KEY="${LITE_LLM_KEY:-}"
+  export MSWEA_API_KEY="${LITE_LLM_KEY:-}"
+}
+
+activate_litellm_key() {
+  local key="${1:-}"
+  [[ -n "$key" ]] || die "cannot activate an empty LiteLLM key"
+  export LITE_LLM_KEY="$key"
+  set_litellm_aliases
+}
+
+litellm_key_count() {
+  parse_litellm_key_pool
+  printf '%s\n' "${#LITELLM_KEYS_PARSED[@]}"
+}
+
 harbor_python() {
   require_command harbor
   local harbor_bin shebang py
@@ -22,7 +61,7 @@ harbor_python() {
 
 load_env() {
   [[ -f "$ENV_FILE" ]] || cp "$PROJECT_ROOT/.env.example" "$ENV_FILE"
-  local names=(PROFILES HARBOR_REPEATS HARBOR_CONCURRENCY MATRIX_CONCURRENCY_PRESET CLAUDE_CONCURRENCY FABLE_CONCURRENCY CODEX_CONCURRENCY LLAMA_CONCURRENCY HARBOR_DISABLE_VERIFICATION MODAL_VM_RUNTIME CUE_ASSIGNMENT_SEED FINANCIAL_MESSAGE_INDEX SELF_PRESERVATION_MESSAGE_INDEX RESOURCE_DEPRIVATION_MESSAGE_INDEX RESOURCE_TASK_COUNT ALLOW_INTERNET AUTO_ANALYZE ANALYSIS_USE_LLM ANALYSIS_MODEL ANALYSIS_MAX_CHARS ANALYSIS_MAX_RETRIES PILOT_TASK_COUNT SAMPLE_TASK_COUNT CLAUDE_AGENT CLAUDE_MODEL CLAUDE_INSTRUCTION_FILE FABLE_AGENT FABLE_MODEL FABLE_INSTRUCTION_FILE CODEX_AGENT CODEX_MODEL CODEX_INSTRUCTION_FILE CODEX_VERSION CODEX_CONFIG_FILE LLAMA_AGENT LLAMA_MODEL LLAMA_INSTRUCTION_FILE MINI_SWE_VERSION LLAMA_CONFIG_FILE)
+  local names=(LITE_LLM_KEY LITE_LLM_KEYS LITE_LLM_TPM_LIMIT PROFILES HARBOR_REPEATS HARBOR_CONCURRENCY MATRIX_CONCURRENCY_PRESET CLAUDE_CONCURRENCY FABLE_CONCURRENCY CODEX_CONCURRENCY LLAMA_CONCURRENCY HARBOR_DISABLE_VERIFICATION MODAL_VM_RUNTIME CUE_ASSIGNMENT_SEED FINANCIAL_MESSAGE_INDEX SELF_PRESERVATION_MESSAGE_INDEX RESOURCE_DEPRIVATION_MESSAGE_INDEX RESOURCE_TASK_COUNT ALLOW_INTERNET AUTO_ANALYZE ANALYSIS_USE_LLM ANALYSIS_MODEL ANALYSIS_MAX_CHARS ANALYSIS_MAX_RETRIES ANALYSIS_SEMANTIC_WORKERS PILOT_TASK_COUNT SAMPLE_TASK_COUNT CLAUDE_AGENT CLAUDE_MODEL CLAUDE_INSTRUCTION_FILE FABLE_AGENT FABLE_MODEL FABLE_INSTRUCTION_FILE CODEX_AGENT CODEX_MODEL CODEX_INSTRUCTION_FILE CODEX_VERSION CODEX_CONFIG_FILE LLAMA_AGENT LLAMA_MODEL LLAMA_INSTRUCTION_FILE MINI_SWE_VERSION LLAMA_CONFIG_FILE)
   local n
   declare -a was_set=() values=()
   for n in "${names[@]}"; do
@@ -38,14 +77,13 @@ load_env() {
     i=$((i+1))
   done
 
-  export OPENAI_API_KEY="${LITE_LLM_KEY:-}"
-  export OPENAI_API_BASE="${LITE_LLM_URL:-}"
-  export OPENAI_BASE_URL="${LITE_LLM_URL:-}"
-  export ANTHROPIC_API_KEY="${LITE_LLM_KEY:-}"
-  export ANTHROPIC_AUTH_TOKEN="${LITE_LLM_KEY:-}"
-  export ANTHROPIC_BASE_URL="${LITE_LLM_URL_ANTHROPIC:-${LITE_LLM_URL:-}}"
-  export GEMINI_API_KEY="${LITE_LLM_KEY:-}"
-  export MSWEA_API_KEY="${LITE_LLM_KEY:-}"
+  export LITE_LLM_TPM_LIMIT="${LITE_LLM_TPM_LIMIT:-200000}"
+  parse_litellm_key_pool
+  if [[ "${#LITELLM_KEYS_PARSED[@]}" -gt 0 ]]; then
+    activate_litellm_key "${LITELLM_KEYS_PARSED[0]}"
+  else
+    set_litellm_aliases
+  fi
   export PYTHONPATH="$PROJECT_ROOT${PYTHONPATH:+:$PYTHONPATH}"
 
   export CLAUDE_AGENT="${CLAUDE_AGENT:-claude-code}"
@@ -96,6 +134,18 @@ load_env() {
   export ANALYSIS_MODEL="${ANALYSIS_MODEL:-openai/gpt-5.6}"
   export ANALYSIS_MAX_CHARS="${ANALYSIS_MAX_CHARS:-60000}"
   export ANALYSIS_MAX_RETRIES="${ANALYSIS_MAX_RETRIES:-3}"
+  if [[ -z "${ANALYSIS_SEMANTIC_WORKERS:-}" ]]; then
+    local key_count per_key_workers auto_workers
+    key_count="${#LITELLM_KEYS_PARSED[@]}"
+    [[ "$key_count" -gt 0 ]] || key_count=1
+    per_key_workers=3
+    if [[ "$LITE_LLM_TPM_LIMIT" =~ ^[0-9]+$ ]] && [[ "$LITE_LLM_TPM_LIMIT" -ge 5000000 ]]; then
+      per_key_workers=12
+    fi
+    auto_workers=$((per_key_workers * key_count))
+    [[ "$auto_workers" -le 64 ]] || auto_workers=64
+    export ANALYSIS_SEMANTIC_WORKERS="$auto_workers"
+  fi
 
   export TASK_ROOT="$PROJECT_ROOT/vendor/rf"
   export GENERATED_ROOT="$PROJECT_ROOT/generated"

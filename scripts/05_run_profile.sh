@@ -7,12 +7,14 @@ SHARD_SPEC=""
 SHARD_SIZE=""
 SHARD_INDEX=""
 INSTALL_ONLY=0
+DATASET_OVERRIDE=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --shard) SHARD_SPEC="${2:-}"; shift 2 ;;
     --shard-size) SHARD_SIZE="${2:-}"; shift 2 ;;
     --shard-index) SHARD_INDEX="${2:-}"; shift 2 ;;
     --install-only) INSTALL_ONLY=1; shift ;;
+    --dataset-override) DATASET_OVERRIDE="${2:-}"; shift 2 ;;
     -h|--help)
       cat <<'EOF'
 Usage:
@@ -20,6 +22,9 @@ Usage:
   ./lab.sh run <mode> <profile> --shard 1/3
   ./lab.sh run <mode> <profile> --shard-size 30 --shard-index 1
   ./lab.sh run <mode> <profile> --install-only
+
+Advanced/internal:
+  ./lab.sh run <mode> <profile> --dataset-override /path/to/generated/shard
 
 `--install-only` builds the task environment and installs the agent without running the model.
 It automatically selects one representative (prefer clean) per base task, so cue variants are not redundantly installed.
@@ -39,6 +44,9 @@ fi
 if [[ -n "$SHARD_SIZE" && -z "$SHARD_INDEX" ]] || [[ -z "$SHARD_SIZE" && -n "$SHARD_INDEX" ]]; then
   echo "--shard-size and --shard-index must be used together." >&2; exit 2
 fi
+if [[ -n "$DATASET_OVERRIDE" && ( -n "$SHARD_SPEC" || -n "$SHARD_SIZE" || -n "$SHARD_INDEX" ) ]]; then
+  echo "--dataset-override cannot be combined with shard options." >&2; exit 2
+fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck disable=SC1091
@@ -46,15 +54,19 @@ source "$SCRIPT_DIR/00_common.sh"
 load_env; profile_values "$PROFILE"; cd "$PROJECT_ROOT"
 export PYTHONPATH="$PROJECT_ROOT${PYTHONPATH:+:$PYTHONPATH}"
 require_command harbor; require_command modal
-[[ -n "${LITE_LLM_KEY:-}" ]] || die "set LITE_LLM_KEY in .env"
+[[ -n "${LITE_LLM_KEY:-}" ]] || die "set LITE_LLM_KEY or LITE_LLM_KEYS in .env"
 
 DATASET="$GENERATED_ROOT/$MODE/$PROFILE"
-require_dir "$DATASET" "dataset; run ./lab.sh prepare $MODE"
 shard_label=""
-if [[ -n "$SHARD_SPEC" ]]; then
+if [[ -n "$DATASET_OVERRIDE" ]]; then
+  DATASET="$DATASET_OVERRIDE"
+  shard_label="-key-shard"
+fi
+require_dir "$DATASET" "dataset; run ./lab.sh prepare $MODE"
+if [[ -z "$DATASET_OVERRIDE" && -n "$SHARD_SPEC" ]]; then
   DATASET="$(python3 "$SCRIPT_DIR/05_shard_dataset.py" --project-root "$PROJECT_ROOT" --mode "$MODE" --profile "$PROFILE" --shard "$SHARD_SPEC")"
   shard_label="-shard-${SHARD_SPEC//\//-of-}"
-elif [[ -n "$SHARD_SIZE" ]]; then
+elif [[ -z "$DATASET_OVERRIDE" && -n "$SHARD_SIZE" ]]; then
   DATASET="$(python3 "$SCRIPT_DIR/05_shard_dataset.py" --project-root "$PROJECT_ROOT" --mode "$MODE" --profile "$PROFILE" --shard-size "$SHARD_SIZE" --shard-index "$SHARD_INDEX")"
   shard_label="-chunk-${SHARD_INDEX}-size-${SHARD_SIZE}"
 fi
@@ -76,8 +88,13 @@ fi
 timestamp="$(date +%Y%m%d-%H%M%S)"
 install_label=""
 [[ "$INSTALL_ONLY" == 1 ]] && install_label="-install-only"
-job_name="swe-eval-pressure-${MODE}-${PROFILE}${shard_label}${install_label}-${timestamp}"
+key_label=""
+if [[ "${SWE_LITELLM_KEY_COUNT:-1}" -gt 1 ]]; then
+  key_label="-key-${SWE_LITELLM_KEY_INDEX:-1}-of-${SWE_LITELLM_KEY_COUNT}"
+fi
+job_name="swe-eval-pressure-${MODE}-${PROFILE}${shard_label}${key_label}${install_label}-${timestamp}"
 output="$RESULTS_ROOT/$MODE/$job_name"; mkdir -p "$output"
+if [[ -n "${SWE_RUN_OUTPUT_FILE:-}" ]]; then printf '%s\n' "$output" > "$SWE_RUN_OUTPUT_FILE"; fi
 cp "$DATASET/manifest.json" "$output/dataset_manifest.json"
 # Keep two manifests for reproducibility. dataset_manifest.json is the exact
 # dataset executed by this Harbor job (possibly one shard). study_manifest.json
@@ -100,12 +117,13 @@ case "$PROFILE" in
   codex) profile_version_requested="${CODEX_VERSION:-}" ;;
   llama) profile_version_requested="${MINI_SWE_VERSION:-}" ;;
 esac
-python3 - "$output/run_metadata.json" "$MODE" "$PROFILE" "$PROFILE_AGENT" "$PROFILE_MODEL_FOR_HARBOR" "$DATASET" "$ALLOW_INTERNET" "$HARBOR_REPEATS" "$HARBOR_CONCURRENCY" "$SHARD_SPEC" "$SHARD_SIZE" "$SHARD_INDEX" "$profile_version_requested" "$PROFILE_CONFIG_FILE" "$HARBOR_DISABLE_VERIFICATION" "$study_manifest" "$INSTALL_ONLY" <<'PYMETA'
+python3 - "$output/run_metadata.json" "$MODE" "$PROFILE" "$PROFILE_AGENT" "$PROFILE_MODEL_FOR_HARBOR" "$DATASET" "$ALLOW_INTERNET" "$HARBOR_REPEATS" "$HARBOR_CONCURRENCY" "$SHARD_SPEC" "$SHARD_SIZE" "$SHARD_INDEX" "$profile_version_requested" "$PROFILE_CONFIG_FILE" "$HARBOR_DISABLE_VERIFICATION" "$study_manifest" "$INSTALL_ONLY" "${SWE_LITELLM_KEY_INDEX:-1}" "${SWE_LITELLM_KEY_COUNT:-1}" "$LITE_LLM_TPM_LIMIT" <<'PYMETA'
 import hashlib, json, sys
 from datetime import datetime, timezone
 from pathlib import Path
 (out, mode, profile, agent, model, dataset, internet, repeats, concurrency,
- shard_spec, shard_size, shard_index, agent_version_requested, config_file, disable_verification, study_manifest_path, install_only) = sys.argv[1:]
+ shard_spec, shard_size, shard_index, agent_version_requested, config_file, disable_verification,
+ study_manifest_path, install_only, litellm_key_index, litellm_key_count, litellm_tpm_limit) = sys.argv[1:]
 dataset_path = Path(dataset)
 manifest_path = dataset_path / "manifest.json"
 manifest_bytes = manifest_path.read_bytes()
@@ -153,6 +171,9 @@ metadata = {
     "allow_internet": internet.lower() == "true",
     "harbor_repeats": int(repeats),
     "harbor_concurrency": int(concurrency),
+    "litellm_key_index": int(litellm_key_index),
+    "litellm_key_count": int(litellm_key_count),
+    "litellm_tpm_limit": int(litellm_tpm_limit) if litellm_tpm_limit.isdigit() else None,
     "install_only": install_only == "1",
     "agent_version_requested": agent_version_requested or None,
     "agent_config_file": config_file or None,
@@ -181,7 +202,7 @@ if [[ "$PROFILE" == "llama" && -n "${MINI_SWE_VERSION:-}" ]]; then args+=(--ak "
 if [[ "$HARBOR_DISABLE_VERIFICATION" == 1 ]]; then args+=(--disable-verification); fi
 count=0; for d in "$DATASET"/*; do [[ -d "$d" && -f "$d/task.toml" ]] && count=$((count+1)); done
 [[ "$count" -gt 0 ]] || die "no tasks in $DATASET"
-echo "Mode=$MODE Profile=$PROFILE Model=$PROFILE_MODEL_FOR_HARBOR Tasks=$count Repeats=$HARBOR_REPEATS Total=$((count*HARBOR_REPEATS)) Internet=$ALLOW_INTERNET InstallOnly=$INSTALL_ONLY"
+echo "Mode=$MODE Profile=$PROFILE Model=$PROFILE_MODEL_FOR_HARBOR Tasks=$count Repeats=$HARBOR_REPEATS Total=$((count*HARBOR_REPEATS)) Internet=$ALLOW_INTERNET InstallOnly=$INSTALL_ONLY Key=${SWE_LITELLM_KEY_INDEX:-1}/${SWE_LITELLM_KEY_COUNT:-1} TPMKey=$LITE_LLM_TPM_LIMIT"
 printf 'Command:'
 for arg in "${args[@]}"; do
   shown="$arg"

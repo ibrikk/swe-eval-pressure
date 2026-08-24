@@ -7,7 +7,7 @@ shift 2 || true
 [[ -n "$PROFILE" && -n "$JOB_ARG" ]] || {
   cat >&2 <<'HELP'
 Usage:
-  ./lab.sh resume <claude|fable|codex|llama> <harbor-job-dir> [--concurrency N] [--retry-nonzero] [--dry-run]
+  ./lab.sh resume <claude|fable|codex|llama> <harbor-job-dir> [--concurrency N] [--retry-nonzero] [--rate-limit-only] [--dry-run]
 
 Default retry filters include transient/provider infrastructure failures only.
 NonZeroAgentExitCodeError is NOT retried by default because it can represent a deterministic
@@ -18,11 +18,13 @@ HELP
 
 NEW_CONCURRENCY=""
 RETRY_NONZERO=0
+RATE_LIMIT_ONLY=0
 DRY_RUN=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --concurrency) NEW_CONCURRENCY="${2:-}"; shift 2 ;;
     --retry-nonzero) RETRY_NONZERO=1; shift ;;
+    --rate-limit-only) RATE_LIMIT_ONLY=1; shift ;;
     --dry-run) DRY_RUN=1; shift ;;
     -h|--help) exec "$0" ;;
     *) echo "Unknown resume option: $1" >&2; exit 2 ;;
@@ -52,13 +54,23 @@ if [[ -n "$NEW_CONCURRENCY" ]]; then
 fi
 
 filters=()
-case "$PROFILE" in
-  claude) filters=(CancelledError UnknownApiError RemoteError) ;;
-  codex)  filters=(CancelledError ApiRateLimitError RemoteError) ;;
-  fable)  filters=(CancelledError UnknownApiError ApiRateLimitError RemoteError) ;;
-  llama)  filters=(CancelledError RemoteError AgentSetupTimeoutError NetworkConnectionError) ;;
-  *) die "unknown profile '$PROFILE'" ;;
-esac
+if [[ "$RATE_LIMIT_ONLY" == 1 ]]; then
+  case "$PROFILE" in
+    claude) filters=(UnknownApiError ApiRateLimitError RemoteError) ;;
+    codex)  filters=(ApiRateLimitError RemoteError) ;;
+    fable)  filters=(UnknownApiError ApiRateLimitError RemoteError) ;;
+    llama)  filters=(ApiRateLimitError RemoteError) ;;
+    *) die "unknown profile '$PROFILE'" ;;
+  esac
+else
+  case "$PROFILE" in
+    claude) filters=(CancelledError UnknownApiError RemoteError) ;;
+    codex)  filters=(CancelledError ApiRateLimitError RemoteError) ;;
+    fable)  filters=(CancelledError UnknownApiError ApiRateLimitError RemoteError) ;;
+    llama)  filters=(CancelledError RemoteError AgentSetupTimeoutError NetworkConnectionError) ;;
+    *) die "unknown profile '$PROFILE'" ;;
+  esac
+fi
 if [[ "$RETRY_NONZERO" == 1 ]]; then
   filters+=(NonZeroAgentExitCodeError)
   echo 'WARNING: explicitly retrying NonZeroAgentExitCodeError; classify the setup failure first.' >&2
@@ -69,6 +81,8 @@ printf 'Job: %s\n' "$JOB"
 printf 'Current concurrency: %s\n' "$cfg_n"
 printf 'Requested concurrency: %s\n' "${NEW_CONCURRENCY:-$cfg_n}"
 printf 'Retry filters:'; printf ' %s' "${filters[@]}"; printf '\n'
+printf 'LiteLLM key: %s/%s (TPM/key=%s)\n' "${SWE_LITELLM_KEY_INDEX:-1}" "${SWE_LITELLM_KEY_COUNT:-1}" "$LITE_LLM_TPM_LIMIT"
+printf 'Rate-limit-only retry: %s\n' "$([[ "$RATE_LIMIT_ONLY" == 1 ]] && echo YES || echo NO)"
 printf 'AgentSafetyRefusalError retry: NO\n'
 printf 'NonZeroAgentExitCodeError retry: %s\n' "$([[ "$RETRY_NONZERO" == 1 ]] && echo YES || echo NO)"
 
@@ -99,11 +113,11 @@ cp "$JOB/lock.json" "$prov/lock.after.json"
 metadata="$JOB/run_metadata.json"
 [[ -f "$metadata" ]] || metadata="$(dirname "$JOB")/run_metadata.json"
 if [[ -f "$metadata" ]]; then
-  python3 - "$metadata" "$PROFILE" "$cfg_n" "$cfg_after" "$RETRY_NONZERO" "${filters[*]}" <<'PY'
+  python3 - "$metadata" "$PROFILE" "$cfg_n" "$cfg_after" "$RETRY_NONZERO" "${filters[*]}" "$RATE_LIMIT_ONLY" "${SWE_LITELLM_KEY_INDEX:-1}" "${SWE_LITELLM_KEY_COUNT:-1}" <<'PY'
 import json, sys
 from datetime import datetime, timezone
 from pathlib import Path
-path, profile, before, after, retry_nonzero, filters = sys.argv[1:]
+path, profile, before, after, retry_nonzero, filters, rate_limit_only, key_index, key_count = sys.argv[1:]
 p = Path(path)
 data = json.loads(p.read_text())
 data.setdefault("resume_history", []).append({
@@ -113,6 +127,9 @@ data.setdefault("resume_history", []).append({
     "concurrency_after": int(after),
     "retry_filters": filters.split(),
     "retry_nonzero_agent_exit": retry_nonzero == "1",
+    "rate_limit_only": rate_limit_only == "1",
+    "litellm_key_index": int(key_index),
+    "litellm_key_count": int(key_count),
     "orchestrator": "lab.sh resume",
 })
 p.write_text(json.dumps(data, indent=2) + "\n")

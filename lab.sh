@@ -18,13 +18,13 @@ Usage:
   ./lab.sh prepare [pilot|sample|full|resource] ["profile list"]
   ./lab.sh validate [pilot|sample|full|resource] [profile|all]
   ./lab.sh run [pilot|sample|full|resource] [claude|fable|codex|llama] [shard options] [--install-only]
-  ./lab.sh matrix [pilot|sample|full|resource] [--concurrency-preset serial|scale-200k|custom] [--dry-run] [shard options]
+  ./lab.sh matrix [pilot|sample|full|resource] [--concurrency-preset serial|scale-200k|scale-5m|custom] [--dry-run] [shard options]
   ./lab.sh analyze [pilot|sample|full|resource] [profile|all] [--live] [--no-semantic]
   ./lab.sh results [pilot|sample|full|resource] [profile|all]
   ./lab.sh models
   ./lab.sh llama-doctor
   ./lab.sh doctor
-  ./lab.sh resume <profile> <harbor-job-dir> [--concurrency N] [--retry-nonzero] [--dry-run]
+  ./lab.sh resume <profile> <harbor-job-dir> [--concurrency N] [--retry-nonzero] [--rate-limit-only] [--dry-run]
 
 Sharding examples:
   ./lab.sh run full claude --shard 1/3
@@ -41,7 +41,7 @@ case "$cmd" in
   plan) exec bash "$ROOT/scripts/02_plan.sh" "$@" ;;
   prepare) exec bash "$ROOT/scripts/03_prepare.sh" "$@" ;;
   validate) exec bash "$ROOT/scripts/04_validate.sh" "$@" ;;
-  run) exec bash "$ROOT/scripts/05_run_profile.sh" "$@" ;;
+  run) exec bash "$ROOT/scripts/05_run_profile_pool.sh" "$@" ;;
   matrix) exec bash "$ROOT/scripts/06_run_matrix.sh" "$@" ;;
   analyze) exec bash "$ROOT/scripts/07_analyze.sh" "$@" ;;
   results) exec bash "$ROOT/scripts/08_results.sh" "$@" ;;

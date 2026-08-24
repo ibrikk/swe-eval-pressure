@@ -8,6 +8,8 @@ import sys
 import urllib.error
 import urllib.request
 
+from litellm_pool import parse_litellm_keys
+
 
 def die(msg: str) -> None:
     print(f"ERROR: {msg}", file=sys.stderr)
@@ -56,10 +58,10 @@ def extract_content(body: dict | str) -> str:
 
 
 def main() -> None:
-    key = os.getenv("LITE_LLM_KEY") or os.getenv("OPENAI_API_KEY")
+    keys = parse_litellm_keys(fallback_key=os.getenv("OPENAI_API_KEY", ""))
     base = os.getenv("LITE_LLM_URL") or os.getenv("OPENAI_BASE_URL")
-    if not key:
-        die("LITE_LLM_KEY / OPENAI_API_KEY is empty")
+    if not keys:
+        die("LITE_LLM_KEY / LITE_LLM_KEYS / OPENAI_API_KEY is empty")
     if not base:
         die("LITE_LLM_URL / OPENAI_BASE_URL is empty")
 
@@ -77,6 +79,7 @@ def main() -> None:
             candidates.insert(0, current)
 
     print(f"Gateway: {endpoint}")
+    print(f"LiteLLM keys: {len(keys)}")
     print(f"Candidates: {len(candidates)}")
     print("Probe: ordinary chat completion + exact Mini-SWE text-command format\n")
 
@@ -108,7 +111,12 @@ def main() -> None:
             "temperature": 0,
             "max_tokens": 160,
         }
-        status, body = request_json(endpoint, key, payload)
+        status, body = 0, ""
+        for key_index, key in enumerate(keys, start=1):
+            status, body = request_json(endpoint, key, payload)
+            if status != 429:
+                break
+            print(f"  key {key_index}/{len(keys)} rate-limited; trying next key")
         content = extract_content(body)
         match = pattern.search(content)
         command_ok = bool(match and "LLAMA_ROUTE_OK" in match.group(1))

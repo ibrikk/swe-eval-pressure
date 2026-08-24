@@ -21,15 +21,18 @@ Usage:
   ./lab.sh matrix <mode> [run/shard options]
   ./lab.sh matrix <mode> --concurrency-preset serial [run/shard options]
   ./lab.sh matrix <mode> --concurrency-preset scale-200k [run/shard options]
+  ./lab.sh matrix <mode> --concurrency-preset scale-5m [run/shard options]
   ./lab.sh matrix <mode> --concurrency-preset custom [run/shard options]
   ./lab.sh matrix <mode> --dry-run [options]
 
 Concurrency presets:
   serial      1/1/1/1 for claude/fable/codex/llama.
-  scale-200k  5/4/4/1, an empirically tested starting point for a 200k TPM key.
+  scale-200k  5/4/4/1, the existing empirically tested starting point for a 200k TPM key.
+  scale-5m    20/16/16/4, a conservative high-throughput starting point for a confirmed 5M TPM key.
   custom      CLAUDE_CONCURRENCY/FABLE_CONCURRENCY/CODEX_CONCURRENCY/LLAMA_CONCURRENCY.
 
-Always confirm the gateway key's TPM limit before using scale-200k on a new account.
+Always confirm the gateway key's TPM limit before selecting a quota-specific preset.
+With multiple LITE_LLM_KEYS, these concurrency values apply per key; the runner shards work across keys automatically.
 EOF
       exit 0 ;;
     *)
@@ -42,10 +45,12 @@ case "$PRESET" in
     CLAUDE_CONCURRENCY=1; FABLE_CONCURRENCY=1; CODEX_CONCURRENCY=1; LLAMA_CONCURRENCY=1 ;;
   scale-200k)
     CLAUDE_CONCURRENCY=5; FABLE_CONCURRENCY=4; CODEX_CONCURRENCY=4; LLAMA_CONCURRENCY=1 ;;
+  scale-5m)
+    CLAUDE_CONCURRENCY=20; FABLE_CONCURRENCY=16; CODEX_CONCURRENCY=16; LLAMA_CONCURRENCY=4 ;;
   custom)
     : ;;
   *)
-    die "unknown concurrency preset '$PRESET'; use serial, scale-200k, or custom" ;;
+    die "unknown concurrency preset '$PRESET'; use serial, scale-200k, scale-5m, or custom" ;;
 esac
 
 profile_concurrency() {
@@ -63,17 +68,26 @@ validate_concurrency() {
   [[ "$n" =~ ^[1-9][0-9]*$ ]] || die "$profile concurrency must be a positive integer, got '$n'"
 }
 
+parse_litellm_key_pool
+key_count="${#LITELLM_KEYS_PARSED[@]}"
+[[ "$key_count" -gt 0 ]] || key_count=1
 total=0
-printf 'Matrix mode=%s preset=%s profiles=%s\n' "$MODE" "$PRESET" "$PROFILES"
+printf 'Matrix mode=%s preset=%s profiles=%s keys=%s TPM/key=%s\n' "$MODE" "$PRESET" "$PROFILES" "$key_count" "$LITE_LLM_TPM_LIMIT"
 for profile in $PROFILES; do
   n="$(profile_concurrency "$profile")"
   validate_concurrency "$profile" "$n"
   total=$((total+n))
   printf '  %-7s concurrency=%s\n' "$profile" "$n"
 done
-printf '  total active Harbor trials=%s\n' "$total"
+printf '  per-key active Harbor trials=%s\n' "$total"
+printf '  aggregate active Harbor trials across key pool=%s\n' "$((total * key_count))"
 if [[ "$PRESET" == "scale-200k" ]]; then
-  echo '  note: scale-200k assumes a confirmed ~200000 TPM key; monitor 429s/TPM during the initial window.'
+  echo '  note: scale-200k preserves the empirically tested ~200000 TPM allocation per key.'
+elif [[ "$PRESET" == "scale-5m" ]]; then
+  echo '  note: scale-5m assumes a confirmed ~5000000 TPM limit per key; it is a conservative starting point, not an empirically optimized ceiling.'
+  if [[ "$LITE_LLM_TPM_LIMIT" =~ ^[0-9]+$ ]] && [[ "$LITE_LLM_TPM_LIMIT" -lt 5000000 ]]; then
+    echo "  WARNING: configured LITE_LLM_TPM_LIMIT=$LITE_LLM_TPM_LIMIT is below 5000000; use scale-200k/custom unless the gateway quota was upgraded." >&2
+  fi
 fi
 
 if [[ "$DRY_RUN" == 1 ]]; then
@@ -133,7 +147,7 @@ for profile in $PROFILES; do
   n="$(profile_concurrency "$profile")"
   (
     export HARBOR_CONCURRENCY="$n"
-    exec bash "$SCRIPT_DIR/05_run_profile.sh" "$MODE" "$profile" "${PASSTHRU[@]}"
+    exec bash "$SCRIPT_DIR/05_run_profile_pool.sh" "$MODE" "$profile" "${PASSTHRU[@]}"
   ) &
   pids+=("$!"); names+=("$profile")
 done

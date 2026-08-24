@@ -20,6 +20,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from litellm_pool import parse_litellm_keys
+
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
@@ -172,9 +174,9 @@ def main() -> None:
     )
     args = ap.parse_args()
 
-    if not os.getenv("LITE_LLM_KEY") or not os.getenv("LITE_LLM_URL"):
+    if not parse_litellm_keys() or not os.getenv("LITE_LLM_URL"):
         raise SystemExit(
-            "LITE_LLM_KEY and LITE_LLM_URL must be set before running the smoke test"
+            "LITE_LLM_KEY/LITE_LLM_KEYS and LITE_LLM_URL must be set before running the smoke test"
         )
 
     analyzer = load_analyzer()

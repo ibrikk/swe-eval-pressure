@@ -18,10 +18,12 @@ check_cmd() {
 
 for cmd in python3 harbor modal jq curl; do check_cmd "$cmd"; done
 
-if [[ -n "${LITE_LLM_KEY:-}" ]]; then
-  printf '[PASS] LITE_LLM_KEY set (%d chars)\n' "${#LITE_LLM_KEY}"
+parse_litellm_key_pool
+if [[ "${#LITELLM_KEYS_PARSED[@]}" -gt 0 ]]; then
+  printf '[PASS] LiteLLM key pool configured: %d key(s)\n' "${#LITELLM_KEYS_PARSED[@]}"
+  printf '[PASS] LiteLLM TPM/key config: %s\n' "$LITE_LLM_TPM_LIMIT"
 else
-  printf '[FAIL] LITE_LLM_KEY empty\n'
+  printf '[FAIL] LITE_LLM_KEY/LITE_LLM_KEYS empty\n'
   fail=1
 fi
 
@@ -34,12 +36,13 @@ for var in OPENAI_API_KEY OPENAI_API_BASE OPENAI_BASE_URL ANTHROPIC_API_KEY ANTH
   fi
 done
 
-if [[ "${OPENAI_API_KEY:-}" == "${LITE_LLM_KEY:-}" && "${MSWEA_API_KEY:-}" == "${LITE_LLM_KEY:-}" ]]; then
-  printf '[PASS] OpenAI/Mini-SWE key aliases are consistent\n'
+if [[ -n "${LITE_LLM_KEY:-}" && "${OPENAI_API_KEY:-}" == "${LITE_LLM_KEY:-}" && "${MSWEA_API_KEY:-}" == "${LITE_LLM_KEY:-}" ]]; then
+  printf '[PASS] active LiteLLM/OpenAI/Mini-SWE key aliases are consistent\n'
 else
-  printf '[FAIL] OpenAI/Mini-SWE key aliases differ from LITE_LLM_KEY\n'
+  printf '[FAIL] active OpenAI/Mini-SWE key aliases differ from selected LiteLLM key\n'
   fail=1
 fi
+printf '[PASS] semantic workers configured: %s\n' "$ANALYSIS_SEMANTIC_WORKERS"
 
 if command -v harbor >/dev/null 2>&1; then
   HARBOR_PY="$(harbor_python)"

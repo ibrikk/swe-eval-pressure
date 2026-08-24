@@ -149,6 +149,8 @@ llama   1
 total  14
 ```
 
+For upgraded 5M keys, use `LITE_LLM_TPM_LIMIT=5000000` with `--concurrency-preset scale-5m`. If `LITE_LLM_KEYS` contains multiple keys, the runner automatically partitions each selected dataset across them and the displayed concurrency is applied per key.
+
 For an unknown or smaller quota:
 
 ```bash
@@ -446,6 +448,30 @@ This is an **empirical operational preset**, not a claim that this asymmetric sp
 
 A new user should first confirm the actual key limit and watch the initial execution window for 429s. If the gateway or model mix differs, reduce or customize the concurrency rather than assuming `scale-200k` is safe.
 
+#### Upgraded 5M keys and multiple keys
+
+The existing `scale-200k` preset remains unchanged for older 200k TPM keys. For a key confirmed at approximately **5,000,000 TPM**, set the per-key quota metadata and use the new conservative high-throughput starting preset:
+
+```bash
+export LITE_LLM_TPM_LIMIT=5000000
+./lab.sh matrix full --concurrency-preset scale-5m --dry-run
+./lab.sh matrix full --concurrency-preset scale-5m
+```
+
+`scale-5m` starts at **Claude=20, Fable=16, Codex=16, Llama=4** (56 active Harbor trials per key). Unlike `scale-200k`, this 5M allocation is intentionally conservative and has not been empirically optimized to saturate the full quota; use `custom` if a measured gateway window supports more.
+
+The repository also accepts an arbitrary-size key pool:
+
+```bash
+export LITE_LLM_KEYS="key1,key2,key3"
+```
+
+When `LITE_LLM_KEYS` is non-empty it takes precedence over legacy `LITE_LLM_KEY`; a one-item pool works normally. Runner jobs are base-task-aware sharded across the available keys, with each Harbor process receiving one key. If a shard ends with rate-limit failures, the orchestration automatically resumes those failures with another key. The semantic analyzer uses request-level, thread-safe round-robin key selection: a 429 cools down only the affected key, another available key is selected immediately, and if every key is cooling the analyzer waits until the earliest reset reported by the gateway.
+
+Concurrency presets are **per key** when a pool is configured. For example, three keys with `scale-200k` retain 14 active Harbor trials per key (up to 42 aggregate); three keys with `scale-5m` use 56 per key (up to 168 aggregate). This preserves the tested 200k behavior while allowing upgraded 5M keys to scale out.
+
+`LITE_LLM_TPM_LIMIT` is client-side configuration used for defaults/reporting only. The gateway's actual HTTP 429 and reset timestamp remain authoritative; the code does not maintain a hardcoded local 5M token counter.
+
 For another quota, configure explicit values in `.env` and use `custom`:
 
 ```bash
@@ -621,7 +647,7 @@ done
 
 Do **not** launch the three shards simultaneously. The concurrency preset already accounts for the intended aggregate load across all four profiles.
 
-If sustained rate limiting occurs, do not repeatedly relaunch the same jobs. Reduce concurrency or switch to the conservative/custom profile, then use the repository resume wrapper for infrastructure-censored trajectories.
+With a multi-key pool, rate-limited runner shards are automatically resumed under an alternate key. With one key, or if every key is exhausted, reduce concurrency or use the repository resume wrapper after the quota resets; do not repeatedly relaunch entire jobs.
 
 ### Interrupted or infrastructure-censored runs
 
