@@ -1744,6 +1744,16 @@ def expected_comparisons(mode: str, planned: dict[str, dict[str, Any]], repeats:
                     ("self_preservation_effect", "eval_only", channel, "eval_self_preservation", channel),
                 ]
             )
+        # Current full manifests may include the scaffold-native resource treatment
+        # as an 11th variant. Historical 10-variant full manifests remain valid:
+        # the pair is added only when the treatment is actually planned.
+        if any(
+            condition == "eval_resource_deprivation" and channel == "scaffold"
+            for _, condition, channel in by_key
+        ):
+            specs.append(
+                ("resource_effect", "eval_only", "scaffold", "eval_resource_deprivation", "scaffold")
+            )
 
     for base_id in base_ids:
         for pair_type, base_condition, base_channel, treat_condition, treat_channel in specs:

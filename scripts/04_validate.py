@@ -25,6 +25,9 @@ CORE_COMBINATIONS = {
     ("eval_financial", "scaffold"),
     ("eval_self_preservation", "scaffold"),
 }
+FULL_RESOURCE_COMBINATIONS = CORE_COMBINATIONS | {
+    ("eval_resource_deprivation", "scaffold"),
+}
 
 
 def digest(path: Path) -> str:
@@ -78,18 +81,30 @@ def main() -> None:
         errors.append(f"task count mismatch expected={expected} actual={actual}")
     if expected != manifest["base_task_count"] * manifest["variants_per_task"]:
         errors.append("manifest task total does not equal base_task_count × variants_per_task")
-    if args.mode in {"pilot", "sample", "full"} and manifest["variants_per_task"] != 10:
-        errors.append("core benchmark must contain exactly 10 variants per base task")
+    if args.mode in {"pilot", "sample"} and manifest["variants_per_task"] != 10:
+        errors.append("pilot/sample benchmark must contain exactly 10 variants per base task")
+    if args.mode == "full":
+        include_resource = bool(manifest.get("full_include_resource", False))
+        expected_full_variants = 11 if include_resource else 10
+        if manifest["variants_per_task"] != expected_full_variants:
+            errors.append(
+                f"full benchmark must contain {expected_full_variants} variants per base task "
+                f"for full_include_resource={include_resource}"
+            )
     if args.mode == RESOURCE_MODE:
         expected_resource_variants = 1 + 2 * len(manifest.get("delivery_channels", []))
         if manifest["variants_per_task"] != expected_resource_variants:
             errors.append(
                 f"resource mode must contain {expected_resource_variants} variants per base task"
             )
-    if args.mode == "full" and (manifest["base_task_count"], expected) != (70, 700):
-        errors.append(
-            f"full benchmark must contain 70 base tasks and 700 instances, found {manifest['base_task_count']} and {expected}"
-        )
+    if args.mode == "full":
+        include_resource = bool(manifest.get("full_include_resource", False))
+        expected_instances = 770 if include_resource else 700
+        if (manifest["base_task_count"], expected) != (70, expected_instances):
+            errors.append(
+                f"full benchmark must contain 70 base tasks and {expected_instances} instances, "
+                f"found {manifest['base_task_count']} and {expected}"
+            )
 
     seen_directories: set[str] = set()
     by_base: dict[str, list[dict]] = defaultdict(list)
@@ -216,9 +231,15 @@ def main() -> None:
         if len(assigned_ids) != 1:
             errors.append(f"{base_task_id}: variants do not share one permanent cue")
         combinations = {(item["condition"], item["channel"]) for item in items}
-        if args.mode in {"pilot", "sample", "full"}:
+        if args.mode in {"pilot", "sample"}:
             if combinations != CORE_COMBINATIONS:
                 errors.append(f"{base_task_id}: incorrect 10-condition matrix: {sorted(combinations)}")
+        elif args.mode == "full":
+            include_resource = bool(manifest.get("full_include_resource", False))
+            expected_combinations = FULL_RESOURCE_COMBINATIONS if include_resource else CORE_COMBINATIONS
+            if combinations != expected_combinations:
+                label = "11-condition full matrix" if include_resource else "historical 10-condition full matrix"
+                errors.append(f"{base_task_id}: incorrect {label}: {sorted(combinations)}")
         elif args.mode == RESOURCE_MODE:
             expected_combinations = resource_combinations(manifest.get("delivery_channels", []))
             if combinations != expected_combinations:
@@ -235,22 +256,28 @@ def main() -> None:
         errors.append(f"expected one clean instance per base task, found {clean_count}")
 
     if args.mode == "full":
-        expected_cue_counts = {cue_id: 63 for cue_id in assignment["cue_ids"]}
+        include_resource = bool(manifest.get("full_include_resource", False))
+        per_task_seeded = 10 if include_resource else 9
+        per_cue = 70 if include_resource else 63
+        per_mechanism = 140 if include_resource else 126
+        expected_cue_counts = {cue_id: per_cue for cue_id in assignment["cue_ids"]}
         if dict(sorted(seeded_cue_counts.items())) != dict(sorted(expected_cue_counts.items())):
-            errors.append(f"full seeded cue counts must equal 63 each: {dict(seeded_cue_counts)}")
+            errors.append(f"full seeded cue counts must equal {per_cue} each: {dict(seeded_cue_counts)}")
         expected_mechanism_counts = {
-            mechanism: 126
+            mechanism: per_mechanism
             for mechanism in assignment["summary"]["base_tasks_by_mechanism"]
         }
         if dict(sorted(seeded_mechanism_counts.items())) != dict(
             sorted(expected_mechanism_counts.items())
         ):
             errors.append(
-                f"full seeded mechanism counts must equal 126 each: {dict(seeded_mechanism_counts)}"
+                f"full seeded mechanism counts must equal {per_mechanism} each: {dict(seeded_mechanism_counts)}"
             )
-        if clean_count != 70 or sum(seeded_cue_counts.values()) != 630:
+        expected_seeded = 70 * per_task_seeded
+        if clean_count != 70 or sum(seeded_cue_counts.values()) != expected_seeded:
             errors.append(
-                f"full counts must be 70 clean + 630 seeded, found {clean_count} + {sum(seeded_cue_counts.values())}"
+                f"full counts must be 70 clean + {expected_seeded} seeded, "
+                f"found {clean_count} + {sum(seeded_cue_counts.values())}"
             )
 
     # Unit-test all overlay channels without Docker, including append preservation.
@@ -299,11 +326,12 @@ def main() -> None:
         for error in errors[:200]:
             print(" -", error)
         raise SystemExit(1)
-    matrix_label = (
-        "10-way primary matrix"
-        if args.mode in {"pilot", "sample", "full"}
-        else "resource matrix"
-    )
+    if args.mode == "full" and bool(manifest.get("full_include_resource", False)):
+        matrix_label = "11-way full matrix (including scaffold resource deprivation)"
+    elif args.mode in {"pilot", "sample", "full"}:
+        matrix_label = "10-way primary matrix"
+    else:
+        matrix_label = "resource matrix"
     print(
         f"Validation passed: {args.profile}/{args.mode}: {actual} generated tasks; "
         f"permanent cue assignment, {matrix_label}, and original task artifacts preserved."

@@ -49,6 +49,10 @@ def parse_bool(value: str) -> bool:
     raise SystemExit(f"invalid boolean value: {value!r}; use true or false")
 
 
+def full_includes_resource(mode: str) -> bool:
+    return mode == "full" and parse_bool(os.getenv("FULL_INCLUDE_RESOURCE", "true"))
+
+
 def base_image_from_record(record: dict[str, Any]) -> str:
     value = str(record.get("base_image", "")).strip()
     if not value:
@@ -259,7 +263,8 @@ def main() -> None:
     )
     resource_pressure = None
     resource_delivery_channels: list[str] = []
-    if args.mode == RESOURCE_MODE:
+    include_resource_in_full = full_includes_resource(args.mode)
+    if args.mode == RESOURCE_MODE or include_resource_in_full:
         resource_path = root / "factor_data" / "resource-deprivation.json"
         resource_pressure = message_by_index(
             resource_path, "resource-deprivation", args.resource_index
@@ -289,13 +294,15 @@ def main() -> None:
         "explicit_cue_ids": assignment_payload["cue_ids"],
         "financial_message_index": args.financial_index,
         "self_preservation_message_index": args.self_index,
-        "resource_deprivation_message_index": args.resource_index if args.mode == RESOURCE_MODE else None,
+        "resource_deprivation_message_index": args.resource_index if (args.mode == RESOURCE_MODE or include_resource_in_full) else None,
+        "full_include_resource": include_resource_in_full if args.mode == "full" else None,
+        "resource_delivery_channels": resource_delivery_channels,
         "delivery_channels": resource_delivery_channels if args.mode == RESOURCE_MODE else channels,
         "base_task_count": len(records),
         "variants_per_task": (
             resource_variants_per_task(resource_delivery_channels)
             if args.mode == RESOURCE_MODE
-            else 10
+            else (11 if include_resource_in_full else 10)
         ),
         "allow_internet": allow_internet,
         "tasks": [],
@@ -312,6 +319,14 @@ def main() -> None:
             )
         else:
             variants = core_variants(channels, financial, self_preservation, eval_text)
+            if include_resource_in_full:
+                assert resource_pressure is not None
+                # Reuse the existing clean and eval-only/scaffold variants from the
+                # primary matrix; append only the resource treatment itself.
+                resource_only = resource_variants(
+                    ["scaffold"], resource_pressure, eval_text, compose
+                )[-1]
+                variants.append(resource_only)
 
         base = root / "vendor" / "rf" / record["task_id"]
         for variant in variants:

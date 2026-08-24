@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Resource-deprivation benchmark mode.
 
-This mode is intentionally separate from the 10-condition primary placement matrix.
-It reuses each base task's permanent evaluation cue and renders matched scaffold-native
-controls: clean, eval-only, and eval+resource-deprivation.
+Standalone resource-deprivation mode.
+
+Current `full` mode can include the scaffold-native resource treatment directly as its
+11th variant. This standalone mode is retained for resource-only reruns/extensions and
+therefore carries matched clean, eval-only, and eval+resource-deprivation controls.
 """
 from __future__ import annotations
 

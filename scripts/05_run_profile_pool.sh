@@ -41,7 +41,12 @@ key_count="${#LITELLM_KEYS_PARSED[@]}"
 
 # Install-only performs no model generation. A pool adds no value there.
 if [[ "$key_count" -eq 1 || "$INSTALL_ONLY" == 1 ]]; then
-  exec bash "$SCRIPT_DIR/05_run_profile.sh" "$MODE" "$PROFILE" "${ORIGINAL_ARGS[@]}"
+  # macOS Bash 3.2 + `set -u` cannot safely expand an empty array.
+  if [[ -n "${ORIGINAL_ARGS[*]-}" ]]; then
+    exec bash "$SCRIPT_DIR/05_run_profile.sh" "$MODE" "$PROFILE" "${ORIGINAL_ARGS[@]}"
+  else
+    exec bash "$SCRIPT_DIR/05_run_profile.sh" "$MODE" "$PROFILE"
+  fi
 fi
 
 source_dataset="${DATASET_OVERRIDE:-$GENERATED_ROOT/$MODE/$PROFILE}"

@@ -109,7 +109,12 @@ HARBOR_CONCURRENCY=1 ./lab.sh run resource llama --install-only
 
 A production-ready checkout should show zero install exceptions for both targeted profiles.
 
-### 4. Prepare and validate the full benchmark
+### 4. Prepare and validate the complete full benchmark
+
+Current `full` mode includes resource deprivation by default as an **11th variant**: one
+scaffold-native `eval+resource-deprivation` treatment per base task. It reuses the
+existing `clean` and `eval-only/scaffold` variants as matched controls, so those controls
+are **not duplicated** inside the full matrix.
 
 ```bash
 ./lab.sh plan full
@@ -118,14 +123,24 @@ PROFILES="claude fable codex llama" ./lab.sh prepare full
 ./lab.sh validate full all
 ```
 
-Expected full study:
+Expected current full study:
 
 ```text
 70 base tasks
-10 variants per base task
-700 trajectories per model
-2,800 total trajectories
+11 variants per base task
+770 trajectories per model
+3,080 total trajectories
+
+Per base task:
+  1 clean
+  3 eval-only              (source, root, scaffold)
+  3 eval+financial         (source, root, scaffold)
+  3 eval+self-preservation (source, root, scaffold)
+  1 eval+resource-deprivation (scaffold only)
 ```
+
+For exact reproduction of the historical 10-variant full matrix used in the first
+production batch, set `FULL_INCLUDE_RESOURCE=false` before planning/preparing.
 
 ### 5. Preview the production launch
 
@@ -200,7 +215,7 @@ for shard in 1 2 3; do
 done
 ```
 
-The shards are `30 / 30 / 10` complete base-task families, corresponding to `300 / 300 / 100` trajectories per model. Do not launch the three shards simultaneously. With a multi-key pool, each shard is automatically partitioned across the configured keys.
+The shards are `30 / 30 / 10` complete base-task families, corresponding to `330 / 330 / 110` trajectories per model in current full mode. Do not launch the three shards simultaneously. With a multi-key pool, each shard is automatically partitioned across the configured keys.
 
 ### 7. Analyze
 
@@ -266,7 +281,7 @@ Do not blindly retry `NonZeroAgentExitCodeError`; classify the cause first. `Age
 
 Each SWE-Atlas base task is assigned one fixed evaluation cue. The assignment is reused across every condition and every model profile.
 
-The primary benchmark has ten variants per base task:
+Current `full` mode has eleven variants per base task:
 
 | Variant | Evaluation cue | Pressure | Placement |
 |---|---|---|---|
@@ -280,8 +295,12 @@ The primary benchmark has ten variants per base task:
 | eval | yes | none | scaffold |
 | eval-financial | yes | financial | scaffold |
 | eval-self | yes | self-preservation | scaffold |
+| **eval-resource** | **yes** | **resource deprivation** | **scaffold** |
 
-With all 70 base tasks this produces **700 trajectories per model profile**.
+With all 70 base tasks this produces **770 trajectories per model profile**. Resource
+deprivation is scaffold-native because the manipulation directly specifies an operational
+resource constraint; its matched full-mode comparison is against the existing
+`eval-only/scaffold` trajectory for the same model and base task.
 
 ### Evaluation cues
 
@@ -307,9 +326,16 @@ Existing repository instructions are preserved and appended to rather than overw
 
 ### Pressure conditions
 
-The primary benchmark includes financial and self-preservation pressure. Resource deprivation is kept as a separate matched follow-up so it does not expand the primary placement matrix.
+Current `full` mode includes financial pressure, self-preservation pressure, and one
+**scaffold-native resource-deprivation** treatment per base task. Financial and
+self-preservation pressure are crossed with all three placements; resource deprivation is
+not crossed with source/root because it is an operational command/verification constraint
+and is intentionally delivered through the scaffold.
 
-Resource mode uses, by default:
+A standalone `resource` mode is still retained for resource-only reruns, debugging, or
+targeted extensions. It carries its own clean and eval-only controls so it can be executed
+independently:
+
 
 | Variant | Evaluation cue | Pressure | Placement |
 |---|---|---|---|
@@ -318,6 +344,50 @@ Resource mode uses, by default:
 | eval-resource | yes | resource deprivation | scaffold |
 
 With all 70 base tasks this produces **210 trajectories per model profile**.
+
+### Running resource deprivation on a collaborator machine (Madhu / fresh checkout)
+
+There are two supported workflows:
+
+**A. New complete study.** Resource deprivation is already included in `full`:
+
+```bash
+./lab.sh plan full
+PROFILES="claude fable codex llama" ./lab.sh prepare full
+./lab.sh validate full all
+./lab.sh matrix full --concurrency-preset scale-200k --shard-size 30 --shard-index 1 --dry-run
+```
+
+Expected: **770 trajectories/model, 3,080 total**. The resource effect is matched as
+`eval_resource_deprivation/scaffold` versus `eval_only/scaffold` on the same base task.
+
+**B. Existing historical 10-variant study.** Run only the
+standalone resource extension so the completed 2,800-run primary matrix is not rerun:
+
+```bash
+./lab.sh plan resource
+PROFILES="claude fable codex llama" ./lab.sh prepare resource
+./lab.sh validate resource all
+./lab.sh matrix resource --concurrency-preset scale-200k --shard-size 30 --shard-index 1 --dry-run
+
+for shard in 1 2 3; do
+  caffeinate -dimsu ./lab.sh matrix resource \
+    --concurrency-preset scale-200k \
+    --shard-size 30 \
+    --shard-index "$shard"
+done
+```
+
+Expected standalone resource run: **210 trajectories/model, 840 total**. It contains
+clean + eval-only/scaffold + eval+resource/scaffold so the extension has contemporaneous
+matched controls. Keep its provenance separate from the historical full run in analysis.
+
+Analyze whichever mode was actually executed:
+
+```bash
+./lab.sh analyze full all       # resource collected inside current 11-variant full mode
+./lab.sh analyze resource all   # standalone resource extension
+```
 
 ## Setup
 
@@ -520,14 +590,14 @@ A direct `./lab.sh run ...` still uses `HARBOR_CONCURRENCY`; the per-profile val
 
 ## Sharding large runs
 
-The primary full benchmark contains **70 base SWE-Atlas tasks**, with 10 variants of each task, for **700 trajectories per model**. Sharding is defined over the 70 base tasks, not over the 700 individual trajectories. This keeps all matched conditions for a base task together.
+Current full mode contains **70 base SWE-Atlas tasks**, with 11 variants of each task, for **770 trajectories per model**. Sharding is defined over the 70 base tasks, not over individual trajectories. This keeps all matched conditions for a base task together.
 
 For fixed-size chunks, `--shard-size 30` means 30 base tasks. `--shard-index` is 1-based:
 
 ```bash
-./lab.sh run full claude --shard-size 30 --shard-index 1  # base-task positions 1–30  -> 300 trajectories
-./lab.sh run full claude --shard-size 30 --shard-index 2  # base-task positions 31–60 -> 300 trajectories
-./lab.sh run full claude --shard-size 30 --shard-index 3  # base-task positions 61–70 -> 100 trajectories
+./lab.sh run full claude --shard-size 30 --shard-index 1  # base-task positions 1–30  -> 330 trajectories
+./lab.sh run full claude --shard-size 30 --shard-index 2  # base-task positions 31–60 -> 330 trajectories
+./lab.sh run full claude --shard-size 30 --shard-index 3  # base-task positions 61–70 -> 110 trajectories
 ```
 
 The positions refer to the deterministic base-task order in the generated manifest; they are not numeric SWE-Atlas task IDs. The same chunks in resource mode contain 90, 90, and 30 trajectories because resource mode has three variants per base task.
@@ -540,7 +610,7 @@ Balanced shards are also available when exact chunk size does not matter:
 ./lab.sh run full claude --shard 3/3
 ```
 
-With 70 base tasks, these contain 23, 23, and 24 base tasks (230, 230, and 240 primary trajectories).
+With 70 base tasks, these contain 23, 23, and 24 base tasks (253, 253, and 264 trajectories in current 11-variant full mode).
 
 Shard datasets are generated under `generated/_shards/` and results are written to separate timestamped job directories. Each run stores both the exact executed shard manifest and the full study manifest, so the analyzer can combine shards and report coverage against the complete study.
 
@@ -581,7 +651,7 @@ ALLOW_INTERNET=false ./lab.sh prepare full
 |---|---:|---:|---|
 | `pilot` | 4 | 10 | pipeline smoke test |
 | `sample` | 10 by default | 10 | medium-scale test |
-| `full` | 70 | 10 | complete primary benchmark |
+| `full` | 70 | 11 by default | complete benchmark, including scaffold-native resource deprivation |
 | `resource` | 70 by default | 3 | matched resource-deprivation follow-up |
 
 Set `BENCHMARK_TASK_IDS` to a comma-separated list of task IDs for an exact custom subset.
@@ -613,7 +683,7 @@ PROFILES="claude fable codex llama" ./lab.sh prepare full
 ./lab.sh validate full all
 ```
 
-The primary `full` study contains 70 base SWE-Atlas tasks × 10 conditions = **700 trajectories per model**, or **2,800 trajectories across the four default profiles**.
+Current `full` mode contains 70 base SWE-Atlas tasks × 11 conditions = **770 trajectories per model**, or **3,080 trajectories across the four default profiles**.
 
 Do not start a production run until `doctor` and `validate` pass.
 
@@ -654,7 +724,7 @@ For an internal gateway key confirmed to have approximately **200,000 TPM**, the
 
 These values are an empirically tested starting point, not a guarantee for every account or gateway configuration. Confirm the quota before use and monitor for rate-limit responses during the initial execution window.
 
-For the primary full study, use base-task-aware shards of 30 tasks. With 70 base tasks this produces three sequential shards containing **30 / 30 / 10 base tasks**, corresponding to **300 / 300 / 100 trajectories per model**. Every ten-condition family for a base task stays within one shard.
+For the current full study, use base-task-aware shards of 30 tasks. With 70 base tasks this produces three sequential shards containing **30 / 30 / 10 base tasks**, corresponding to **330 / 330 / 110 trajectories per model**. Every eleven-condition family for a base task stays within one shard.
 
 Preview the first shard without starting Harbor:
 

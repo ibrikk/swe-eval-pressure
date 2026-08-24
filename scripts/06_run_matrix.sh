@@ -147,7 +147,13 @@ for profile in $PROFILES; do
   n="$(profile_concurrency "$profile")"
   (
     export HARBOR_CONCURRENCY="$n"
-    exec bash "$SCRIPT_DIR/05_run_profile_pool.sh" "$MODE" "$profile" "${PASSTHRU[@]}"
+    # macOS ships Bash 3.2. With `set -u`, expanding an empty array via
+    # "${PASSTHRU[@]}" raises "unbound variable". Avoid expanding it when empty.
+    if [[ -n "${PASSTHRU[*]-}" ]]; then
+      exec bash "$SCRIPT_DIR/05_run_profile_pool.sh" "$MODE" "$profile" "${PASSTHRU[@]}"
+    else
+      exec bash "$SCRIPT_DIR/05_run_profile_pool.sh" "$MODE" "$profile"
+    fi
   ) &
   pids+=("$!"); names+=("$profile")
 done

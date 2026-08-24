@@ -31,8 +31,9 @@ It automatically selects one representative (prefer clean) per base task, so cue
 Use it as a task-image compatibility smoke before expensive runs.
 
 Sharding is base-task aware: all variants of a SWE-Atlas base task stay in the same shard.
-For full mode, --shard-size 30 creates chunks of 300, 300, and 100 trajectories.
-For resource mode, the same chunks contain 90, 90, and 30 trajectories.
+For current full mode, --shard-size 30 creates chunks of 330, 330, and 110 trajectories
+(11 variants/task, including scaffold-native resource deprivation).
+For standalone resource mode, the same chunks contain 90, 90, and 30 trajectories.
 EOF
       exit 0 ;;
     *) echo "Unknown run option: $1" >&2; exit 2 ;;

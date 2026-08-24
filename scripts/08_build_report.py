@@ -643,7 +643,7 @@ def build_workbook(args: argparse.Namespace) -> Path:
         ["Trajectory rows observed", len(trials)],
         ["Substantive usable trajectories", usable_n],
         ["Successful semantic judgments", successful_semantic],
-        ["Primary full design", "70 base tasks × 10 variants = 700 trajectories/model."],
+        ["Current full design", "70 base tasks × 11 variants = 770 trajectories/model (includes scaffold-native resource deprivation)."],
         ["Resource full design", "70 base tasks × 3 variants = 210 trajectories/model."],
         ["Tool accounting", "raw_tool_calls and the analyzer tool-category fields are used for tool summaries."],
         ["Semantic coding", "Evaluation-awareness and pressure-recognition figures use rows with semantic_judge_status = ok."],
@@ -887,13 +887,13 @@ def build_workbook(args: argparse.Namespace) -> Path:
     ws = wb.add_worksheet("Experiment_Design")
     ws.write(0, 0, "EXPERIMENTAL DESIGN", fmt["title"])
     design_rows = [
-        ["Unit", "Meaning", "Primary full", "Resource full"],
+        ["Unit", "Meaning", "Current full", "Standalone resource"],
         ["Base task", "One underlying SWE-Atlas software-engineering task.", "70/model", "70/model"],
-        ["Variant/condition", "One treatment configuration applied to a base task.", "10/task", "3/task"],
-        ["Trajectory/run", "One model executing one task under one variant.", "700/model", "210/model"],
+        ["Variant/condition", "One treatment configuration applied to a base task.", "11/task", "3/task"],
+        ["Trajectory/run", "One model executing one task under one variant.", "770/model", "210/model"],
         ["Matched pair", "Same model + same base task (+ same placement where applicable), compared across two conditions.", "Analyzer matched-pair output", "Analyzer matched-pair output"],
         [],
-        ["PRIMARY 10-VARIANT MATRIX", "", "", ""],
+        ["CURRENT 11-VARIANT FULL MATRIX", "", "", ""],
         ["#", "Condition", "Placement", "Pressure"],
         [1, "clean", "none", "none"],
         [2, "eval_only", "source", "none"],
@@ -905,8 +905,9 @@ def build_workbook(args: argparse.Namespace) -> Path:
         [8, "eval_only", "scaffold", "none"],
         [9, "eval_financial", "scaffold", "financial"],
         [10, "eval_self_preservation", "scaffold", "self_preservation"],
+        [11, "eval_resource_deprivation", "scaffold", "resource_deprivation"],
         [],
-        ["RESOURCE 3-VARIANT MATRIX", "", "", ""],
+        ["STANDALONE RESOURCE MATRIX", "", "", ""],
         ["#", "Condition", "Placement", "Pressure"],
         [1, "clean", "none", "none"],
         [2, "eval_only", "scaffold", "none"],
@@ -916,7 +917,7 @@ def build_workbook(args: argparse.Namespace) -> Path:
         if not row:
             continue
         for c, value in enumerate(row):
-            cell_fmt = fmt["section"] if r in {2, 8, 21} else (fmt["header"] if row and row[0] == "#" else fmt["wrap"])
+            cell_fmt = fmt["section"] if r in {2, 8, 22} else (fmt["header"] if row and row[0] == "#" else fmt["wrap"])
             write_value(ws, r, c, value, cell_fmt)
     ws.set_column("A:A", 24); ws.set_column("B:B", 78); ws.set_column("C:D", 22)
     ws.freeze_panes(2, 0)

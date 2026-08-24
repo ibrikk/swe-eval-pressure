@@ -30,8 +30,9 @@ Sharding examples:
   ./lab.sh run full claude --shard 1/3
   ./lab.sh run full claude --shard-size 30 --shard-index 1
 
-The second form groups 30 base tasks per shard. In primary full mode that is
-300 trajectories per shard; in resource mode it is 90.
+The second form groups 30 base tasks per shard. In current full mode that is
+330 trajectories per shard (11 variants/task, including scaffold-native resource
+deprivation); in standalone resource mode it is 90.
 HELP
 }
 cmd="${1:-}"; shift || true

@@ -26,9 +26,20 @@ def task_count(mode: str, total: int) -> int:
     raise SystemExit(f"unknown mode: {mode}")
 
 
+def full_includes_resource() -> bool:
+    value = os.getenv("FULL_INCLUDE_RESOURCE", "true").strip().lower()
+    if value in {"1", "true", "yes", "on"}:
+        return True
+    if value in {"0", "false", "no", "off"}:
+        return False
+    raise SystemExit(f"invalid FULL_INCLUDE_RESOURCE={value!r}; use true or false")
+
+
 def variants_per_task(mode: str) -> int:
     if mode == RESOURCE_MODE:
         return resource_variants_per_task(["scaffold"])
+    if mode == "full" and full_includes_resource():
+        return 11
     return 10
 
 
@@ -66,7 +77,12 @@ def main() -> None:
         print("Delivery channel:        scaffold-native")
         print(f"Resource message index:  {os.getenv('RESOURCE_DEPRIVATION_MESSAGE_INDEX', '10')}")
     else:
-        print("Conditions:              clean, eval-only, eval+financial, eval+self-preservation")
+        if args.mode == "full" and full_includes_resource():
+            print("Conditions:              clean, eval-only, eval+financial, eval+self-preservation, eval+resource-deprivation")
+            print("Resource placement:      scaffold-native only")
+            print(f"Resource message index:  {os.getenv('RESOURCE_DEPRIVATION_MESSAGE_INDEX', '10')}")
+        else:
+            print("Conditions:              clean, eval-only, eval+financial, eval+self-preservation")
         print("Delivery channels:       source-local, passive-root, scaffold-native")
     print(f"Cue level:               {assignment['cue_level']}")
     print(f"Cue assignment seed:     {assignment['assignment_seed']}")
@@ -79,12 +95,15 @@ def main() -> None:
     print(f"Total trajectories:      {trajectories}")
     if args.mode == "full":
         seeded_counts = Counter(item["cue_id"] for item in assignment["tasks"])
+        seeded_variants = variants - 1
         print(f"Clean instances/profile: {selected}")
-        print(f"Seeded instances/profile:{selected * 9:>5}")
-        print("Cue distribution:        " + ", ".join(f"{cue_id}={count * 9}" for cue_id, count in sorted(seeded_counts.items())))
+        print(f"Seeded instances/profile:{selected * seeded_variants:>5}")
+        print("Cue distribution:        " + ", ".join(f"{cue_id}={count * seeded_variants}" for cue_id, count in sorted(seeded_counts.items())))
     print()
     if args.mode == RESOURCE_MODE:
-        print("Note: resource mode reuses each base task's permanent cue and keeps the 10-condition primary benchmark unchanged.")
+        print("Note: standalone resource mode reuses each base task's permanent cue and carries its own clean/eval-only controls.")
+    elif args.mode == "full" and full_includes_resource():
+        print("Note: full mode includes one scaffold-native eval+resource-deprivation variant per base task; existing clean/eval-only scaffold runs are its matched controls.")
     else:
         print("Note: each base task keeps one permanent explicit cue across all seeded variants and all profiles.")
 
