@@ -18,7 +18,7 @@ while [[ $# -gt 0 ]]; do
     --input-root) INPUT_ROOT="${2:-}"; shift 2 ;;
     --output-dir) OUTPUT_DIR="${2:-}"; shift 2 ;;
     -h|--help)
-      echo "Usage: ./lab.sh results <mode> <profile|all> [--input-root PATH] [--output-dir PATH] [08_results.py options]"
+      echo "Usage: ./lab.sh results <mode> <profile|all> [--input-root PATH] [--output-dir PATH] [--allow-partial] [08_results.py options]"
       exit 0 ;;
     *) EXTRA_ARGS+=("$1"); shift ;;
   esac

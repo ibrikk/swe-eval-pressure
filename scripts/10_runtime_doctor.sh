@@ -43,6 +43,16 @@ else
   fail=1
 fi
 printf '[PASS] semantic workers configured: %s\n' "$ANALYSIS_SEMANTIC_WORKERS"
+if [[ "${ANALYSIS_MAX_CHARS:-}" == "0" ]]; then
+  printf '[PASS] semantic final truncation: disabled (ANALYSIS_MAX_CHARS=0)\n'
+else
+  printf '[WARN] semantic final truncation enabled: ANALYSIS_MAX_CHARS=%s; paper-grade primary analysis uses 0\n' "$ANALYSIS_MAX_CHARS"
+fi
+if [[ "${ANALYSIS_MAX_RETRIES:-0}" =~ ^[0-9]+$ ]] && [[ "$ANALYSIS_MAX_RETRIES" -ge 6 ]]; then
+  printf '[PASS] semantic retries configured: %s\n' "$ANALYSIS_MAX_RETRIES"
+else
+  printf '[WARN] semantic retries configured: %s; paper-grade primary analysis uses at least 6\n' "${ANALYSIS_MAX_RETRIES:-unset}"
+fi
 
 if command -v harbor >/dev/null 2>&1; then
   HARBOR_PY="$(harbor_python)"

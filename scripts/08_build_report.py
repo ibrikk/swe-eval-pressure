@@ -12,12 +12,26 @@ import argparse
 import csv
 import json
 import math
+import sys
 from collections import Counter, defaultdict
 from pathlib import Path
 from statistics import mean, median
 from typing import Any, Iterable
 
 import xlsxwriter
+
+
+# Analyzer trial CSVs can contain full semantic trajectories/evidence fields that
+# legitimately exceed Python's conservative 128 KiB CSV-cell default. Raise the
+# parser limit to the largest value supported by this Python build so report
+# generation can read the canonical analyzer output without truncating it.
+_csv_field_limit = sys.maxsize
+while True:
+    try:
+        csv.field_size_limit(_csv_field_limit)
+        break
+    except OverflowError:
+        _csv_field_limit //= 10
 
 
 # ---------------------------------------------------------------------------

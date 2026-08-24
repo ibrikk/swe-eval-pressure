@@ -35,6 +35,8 @@ Usage:
 
 The LLM semantic judge is enabled by default (ANALYSIS_USE_LLM=1).
 Use --no-semantic for deterministic-only analysis; --semantic forces it on.
+Paper-grade defaults are ANALYSIS_MAX_CHARS=0 (no final semantic-view truncation)
+and ANALYSIS_MAX_RETRIES=6. ./lab.sh doctor reports if a local .env overrides them.
 
 Advanced:
   ./lab.sh analyze <mode> <profile> --results-dir /path/to/results
@@ -57,7 +59,7 @@ fi
 if [[ "$TARGET" == all && -n "$MANIFEST" ]]; then
   die "--manifest with target=all is ambiguous; analyze one profile at a time"
 fi
-if [[ "$TARGET" == all && "${#RUN_DIRS[@]}" -gt 0 ]]; then
+if [[ "$TARGET" == all && -n "${RUN_DIRS[*]-}" ]]; then
   die "--run-dir with target=all is ambiguous; analyze one profile at a time"
 fi
 if [[ "$TARGET" == all && "$STRICT_RECONSTRUCTION" == 1 ]]; then
@@ -79,7 +81,11 @@ analyze_one() {
   )
   [[ -n "$RESULTS_DIR" ]] && args+=(--results-dir "$RESULTS_DIR")
   [[ -n "$MANIFEST" ]] && args+=(--manifest "$MANIFEST")
-  for run_dir in "${RUN_DIRS[@]}"; do
+  # macOS ships Bash 3.2, where expanding an empty indexed array under
+  # `set -u` can raise an unbound-variable error. `${RUN_DIRS[@]-}` keeps
+  # the no-override path safe while preserving every explicitly supplied run dir.
+  for run_dir in "${RUN_DIRS[@]-}"; do
+    [[ -n "$run_dir" ]] || continue
     args+=(--run-dir "$run_dir")
   done
   [[ "$STRICT_RECONSTRUCTION" == 1 ]] && args+=(--strict-reconstruction)

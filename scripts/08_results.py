@@ -129,6 +129,28 @@ def load_profiles(root: Path) -> tuple[dict[str, list[dict[str, Any]]], dict[str
     return data, summaries, paths
 
 
+def validate_complete_profiles(
+    data: dict[str, list[dict[str, Any]]],
+    summaries: dict[str, dict[str, Any]],
+) -> None:
+    errors: list[str] = []
+    for profile, rows in data.items():
+        summary = summaries.get(profile, {})
+        planned = int(summary.get("planned_trajectories") or 0)
+        found = int(summary.get("results_found") or len(rows))
+        missing = int(summary.get("missing") or max(0, planned - found)) if planned else 0
+        if planned and found != planned:
+            errors.append(f"{profile}: results_found={found}, planned={planned}")
+        if missing:
+            errors.append(f"{profile}: missing={missing}")
+    if errors:
+        raise SystemExit(
+            "Refusing complete-study standardized results from partial canonical analysis:\n  - "
+            + "\n  - ".join(errors)
+            + "\nFinish/reconstruct the full study first, or rerun with --allow-partial only for diagnostics."
+        )
+
+
 def bootstrap_ci(diffs: list[int], reps: int, seed: int) -> tuple[float | None, float | None]:
     if not diffs:
         return None, None
@@ -561,6 +583,10 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Generate standardized SWE-EvalPressure results from canonical analyzer outputs.")
     parser.add_argument("--input-root", type=Path, required=True, help="Profile directory or directory containing profile subdirectories with trials.json.")
     parser.add_argument("--output-dir", type=Path, required=True)
+    parser.add_argument(
+        "--allow-partial", action="store_true",
+        help="Allow standardized tables from an intentionally partial analysis (diagnostics only).",
+    )
     parser.add_argument("--bootstrap-reps", type=int, default=DEFAULT_BOOTSTRAP_REPS)
     parser.add_argument("--seed", type=int, default=DEFAULT_SEED)
     args = parser.parse_args()
@@ -570,6 +596,8 @@ def main() -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     data, summaries, paths = load_profiles(input_root)
+    if not args.allow_partial:
+        validate_complete_profiles(data, summaries)
 
     inventory = run_inventory(data, summaries, paths)
     perf = performance_by_condition(data)

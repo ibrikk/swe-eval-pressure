@@ -71,14 +71,23 @@ def discover_profiles(root: Path) -> list[Path]:
     )
 
 
-def load_trials(input_root: Path) -> dict[str, pd.DataFrame]:
+def load_trials(input_root: Path, allow_partial: bool = False) -> dict[str, pd.DataFrame]:
     out: dict[str, pd.DataFrame] = {}
+    completeness_errors: list[str] = []
     for p in discover_profiles(input_root):
         rows = safe_json(p / "trials.json")
         if not isinstance(rows, list):
             raise SystemExit(f"Invalid trials.json: {p / 'trials.json'}")
         summary = safe_json(p / "summary.json") or {}
         profile = str(summary.get("profile") or p.name)
+        planned = int(summary.get("planned_trajectories") or 0)
+        found = int(summary.get("results_found") or len(rows))
+        missing = int(summary.get("missing") or max(0, planned - found)) if planned else 0
+        if not allow_partial:
+            if planned and found != planned:
+                completeness_errors.append(f"{profile}: results_found={found}, planned={planned}")
+            if missing:
+                completeness_errors.append(f"{profile}: missing={missing}")
         df = pd.DataFrame(rows)
         if "substantive_usable" in df:
             df = df[df["substantive_usable"].astype(bool)].copy()
@@ -89,6 +98,12 @@ def load_trials(input_root: Path) -> dict[str, pd.DataFrame]:
         out[profile] = df
     if not out:
         raise SystemExit(f"No profile trials found under {input_root}")
+    if completeness_errors:
+        raise SystemExit(
+            "Refusing paper-grade inference on incomplete canonical analysis:\n  - "
+            + "\n  - ".join(completeness_errors)
+            + "\nFinish/reconstruct the full study first. Use --allow-partial only for diagnostic inference."
+        )
     return out
 
 
@@ -232,7 +247,18 @@ def joint_wald(result, indices: list[int], label: str, profile: str, analysis: s
     R = np.zeros((len(indices), k))
     for row_idx, param_idx in enumerate(indices):
         R[row_idx, param_idx] = 1.0
-    wt = result.wald_test(R, scalar=True)
+    try:
+        wt = result.wald_test(R, scalar=True)
+    except (ValueError, np.linalg.LinAlgError) as exc:
+        return {
+            "profile": profile,
+            "analysis": analysis,
+            "test": label,
+            "df": len(indices),
+            "chi2": None,
+            "p_value": None,
+            "status": f"not_estimable_wald:{type(exc).__name__}",
+        }
     return {
         "profile": profile,
         "analysis": analysis,
@@ -240,6 +266,7 @@ def joint_wald(result, indices: list[int], label: str, profile: str, analysis: s
         "df": len(indices),
         "chi2": float(np.asarray(wt.statistic).squeeze()),
         "p_value": float(np.asarray(wt.pvalue).squeeze()),
+        "status": "ok",
     }
 
 
@@ -307,7 +334,7 @@ def evaluation_salience_gee(profile: str, df: pd.DataFrame):
     test = joint_wald(
         result, indices, "global_eval_salience", profile, "evaluation_salience_gee"
     )
-    test["status"] = "ok"
+    test.setdefault("status", "ok")
     return result, coefs, [test], use
 
 
@@ -387,7 +414,7 @@ def pressure_placement_gee(profile: str, df: pd.DataFrame):
         (channel_main, "channel_main_under_eval_only"),
     ):
         row = joint_wald(result, indices, label, profile, "pressure_placement_gee")
-        row["status"] = "ok"
+        row.setdefault("status", "ok")
         tests.append(row)
     return result, coefs, tests, use
 
@@ -502,6 +529,10 @@ def main() -> None:
         help="Directory produced by scripts/08_results.py.",
     )
     parser.add_argument("--output-dir", type=Path, required=True)
+    parser.add_argument(
+        "--allow-partial", action="store_true",
+        help="Permit diagnostic inference on incomplete canonical analysis. Paper inference is complete-only by default.",
+    )
     args = parser.parse_args()
 
     input_root = args.input_root.resolve()
@@ -509,7 +540,7 @@ def main() -> None:
     output_dir = args.output_dir.resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    data = load_trials(input_root)
+    data = load_trials(input_root, allow_partial=args.allow_partial)
 
     matched = matched_inference(standardized_results_dir)
     matched.to_csv(output_dir / "matched_inference.csv", index=False)

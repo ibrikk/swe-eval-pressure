@@ -218,6 +218,8 @@ After the study is complete, run the full analysis:
 
 Semantic analysis is enabled by default and uses `ANALYSIS_MODEL` (default: `openai/gpt-5.6`). Judgments are cached in `semantic_judgments.json`. Use `--no-semantic` when you intentionally want deterministic analysis without semantic coding. Use `--live` for an incomplete result snapshot.
 
+The paper-grade semantic defaults are `ANALYSIS_MAX_CHARS=0` (no final head/tail truncation after deterministic semantic-view compaction) and `ANALYSIS_MAX_RETRIES=6`. `./lab.sh doctor` reports these settings and warns if an older local `.env` still overrides them.
+
 Generate standardized result tables from the canonical analyzer outputs:
 
 ```bash
@@ -228,7 +230,9 @@ The standardized results are written under `analysis/results/full/all/` and incl
 
 `./lab.sh` can be invoked from zsh or Bash; it dispatches Bash-specific helper scripts internally. Do not manually `source scripts/00_common.sh` from zsh.
 
-Generate the Excel workbook after the final analysis:
+The canonical analyzer outputs live under `analysis/full/<profile>/`; the standardized cross-model tables and readable summary live under `analysis/results/full/all/`. These are the scientific result sources used by the reporting layer.
+
+Generate the Excel workbook after the final analysis. The workbook includes trial-level data, supporting tables, and six presentation-oriented core-figure tabs (C01–C06):
 
 ```bash
 ./lab.sh report full all

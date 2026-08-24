@@ -132,8 +132,8 @@ load_env() {
   export AUTO_ANALYZE="${AUTO_ANALYZE:-0}"
   export ANALYSIS_USE_LLM="${ANALYSIS_USE_LLM:-1}"
   export ANALYSIS_MODEL="${ANALYSIS_MODEL:-openai/gpt-5.6}"
-  export ANALYSIS_MAX_CHARS="${ANALYSIS_MAX_CHARS:-60000}"
-  export ANALYSIS_MAX_RETRIES="${ANALYSIS_MAX_RETRIES:-3}"
+  export ANALYSIS_MAX_CHARS="${ANALYSIS_MAX_CHARS:-0}"
+  export ANALYSIS_MAX_RETRIES="${ANALYSIS_MAX_RETRIES:-6}"
   if [[ -z "${ANALYSIS_SEMANTIC_WORKERS:-}" ]]; then
     local key_count per_key_workers auto_workers
     key_count="${#LITELLM_KEYS_PARSED[@]}"

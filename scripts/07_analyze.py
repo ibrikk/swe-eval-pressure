@@ -2266,6 +2266,23 @@ def main() -> None:
 
     candidates = collect_result_candidates(selected_runs, planned)
 
+    # A normal (non-live) analysis is expected to represent the complete planned
+    # study. This prevents a newer partial shard/group from silently replacing a
+    # previously complete canonical analysis. Partial progress is still supported
+    # explicitly through `--live`. Censored/error trajectories count as found as
+    # long as Harbor emitted a result.json for the planned task.
+    missing_result_tasks = sorted(set(planned) - set(candidates))
+    if missing_result_tasks and not args.live:
+        preview = ", ".join(missing_result_tasks[:8])
+        extra = f" ... (+{len(missing_result_tasks) - 8} more)" if len(missing_result_tasks) > 8 else ""
+        raise SystemExit(
+            f"Incomplete non-live reconstruction for {args.mode}/{args.profile}: "
+            f"found results for {len(planned) - len(missing_result_tasks)}/{len(planned)} planned tasks; "
+            f"missing {len(missing_result_tasks)}. Missing examples: {preview}{extra}. "
+            "Finish all shards / retries, constrain the intended run provenance with --run-dir, "
+            "or use --live for an intentionally partial analysis."
+        )
+
     allowed_censored_tasks: set[str] = set()
     if args.censored_task_allowlist:
         allowed_censored_tasks = {
