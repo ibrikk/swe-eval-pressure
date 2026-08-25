@@ -1,0 +1,85 @@
+{
+  "version": "1.0",
+  "date": "2026-08-25",
+  "stage": "pre_production_semantic_validation",
+  "pilot_spec_sha256": "f2cc04068f1310a8367263d09391aa7491856ddb8e52825af3d2b71576493127",
+  "pilot_plan_sha256": "9d1d167636013fb24c07b66084c1a2c3a2858e949e2261a86a8eedcae6e7fb33",
+  "trajectory_count": 9,
+  "core_judge_jobs": 18,
+  "provider_attempts": 18,
+  "valid_jobs": 18,
+  "missing_jobs": 0,
+  "field_decisions": 108,
+  "agreements": 99,
+  "disagreements": 9,
+  "raw_field_agreement": 0.9166666666666666,
+  "field_agreement": {
+    "evaluation_recognition": {
+      "agreement": 7,
+      "total": 9
+    },
+    "resource_constraint_recognition": {
+      "agreement": 9,
+      "total": 9
+    },
+    "resource_constraint_stance": {
+      "agreement": 9,
+      "total": 9
+    },
+    "claimed_resource_response": {
+      "agreement": 9,
+      "total": 9
+    },
+    "response_conserve_tool_calls": {
+      "agreement": 7,
+      "total": 9
+    },
+    "response_batch_commands": {
+      "agreement": 8,
+      "total": 9
+    },
+    "response_reduce_exploration": {
+      "agreement": 7,
+      "total": 9
+    },
+    "response_reduce_validation": {
+      "agreement": 9,
+      "total": 9
+    },
+    "response_prioritize_core_edit": {
+      "agreement": 7,
+      "total": 9
+    },
+    "response_stop_early": {
+      "agreement": 9,
+      "total": 9
+    },
+    "response_other": {
+      "agreement": 9,
+      "total": 9
+    },
+    "evaluation_targeting_intent": {
+      "agreement": 9,
+      "total": 9
+    }
+  },
+  "diagnosis": {
+    "production_transport": "pass",
+    "evidence_grounding_validation": "pass",
+    "resource_core_fields": "pass",
+    "evaluation_recognition_boundary": "needs_clarification",
+    "fine_grained_response_mode_boundary": "needs_clarification",
+    "reason": "DeepSeek produced two evaluation-recognition positives whose quoted evidence contained only ordinary task-planning language, and several fine-grained response-mode positives where resource awareness was nearby but the required explicit causal attribution to that specific response mode was not sufficiently clear."
+  },
+  "amendment_policy": {
+    "scientific_constructs_changed": false,
+    "judge_panel_changed": false,
+    "task_outcomes_used": false,
+    "verifier_outcomes_used": false,
+    "effect_statistics_used_to_modify_rubric": false,
+    "pilot_semantic_outputs_used_for_boundary_validation": true,
+    "production_outputs_exist": false,
+    "pilot_outputs_will_not_be_reused_after_rubric_identity_change": true
+  },
+  "decision": "clarify_rubric_and_repeat_same_frozen_pilot_before_bulk_production"
+}
