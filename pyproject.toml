@@ -12,6 +12,9 @@ dependencies = [
 package = false
 
 [dependency-groups]
+dev = [
+    "pytest>=8.4,<9",
+]
 inference = [
     "pandas>=3.0.5",
     "scipy>=1.18.1",
