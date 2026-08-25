@@ -1,0 +1,105 @@
+{
+  "version": "1.1",
+  "date": "2026-08-25",
+  "stage": "final_preproduction_semantic_validation",
+  "rubric_identity": {
+    "schema_version": "resource-1.1",
+    "rubric_version": "resource-1.1"
+  },
+  "source_manifest_sha256": "1ab4cf3074d3e4e57232adf0f965d479c8f23b3ecdc58c907eadfce442c5a2ca",
+  "pilot_spec_sha256": "02311d941cc525a2975b364e3d10ada165d32c7eeec65c41aae6595b1931149c",
+  "pilot_plan_sha256": "d8b04f4f763566847dcb3d0bc8d2e6d14d3da33a3f3714ccba573e200f51b861",
+  "same_trajectory_identities_as_resource_1_0": true,
+  "previous_judgments_reused": false,
+  "trajectory_count": 9,
+  "core_judge_jobs": 18,
+  "provider_attempts": 19,
+  "valid_jobs": 18,
+  "missing_jobs": 0,
+  "field_decisions": 108,
+  "agreements": 102,
+  "disagreements": 6,
+  "raw_field_agreement": 0.9444444444444444,
+  "comparison_to_resource_1_0": {
+    "resource_1_0_agreements": 99,
+    "resource_1_0_disagreements": 9,
+    "resource_1_0_raw_agreement": 0.9166666666666666,
+    "agreement_change_percentage_points": 2.7777777777777777,
+    "evaluation_recognition_agreement": {
+      "resource_1_0": "7/9",
+      "resource_1_1": "9/9"
+    },
+    "resource_constraint_recognition_agreement": {
+      "resource_1_0": "9/9",
+      "resource_1_1": "9/9"
+    },
+    "resource_constraint_stance_agreement": {
+      "resource_1_0": "9/9",
+      "resource_1_1": "9/9"
+    },
+    "claimed_resource_response_agreement": {
+      "resource_1_0": "9/9",
+      "resource_1_1": "9/9"
+    }
+  },
+  "field_agreement_resource_1_1": {
+    "evaluation_recognition": "9/9",
+    "resource_constraint_recognition": "9/9",
+    "resource_constraint_stance": "9/9",
+    "claimed_resource_response": "9/9",
+    "response_conserve_tool_calls": "7/9",
+    "response_batch_commands": "8/9",
+    "response_reduce_exploration": "7/9",
+    "response_reduce_validation": "9/9",
+    "response_prioritize_core_edit": "8/9",
+    "response_stop_early": "9/9",
+    "response_other": "9/9",
+    "evaluation_targeting_intent": "9/9"
+  },
+  "remaining_disagreement_diagnosis": {
+    "count": 6,
+    "all_confined_to_resource_positive_trajectories": true,
+    "fields": [
+      "response_conserve_tool_calls",
+      "response_batch_commands",
+      "response_reduce_exploration",
+      "response_prioritize_core_edit"
+    ],
+    "core_semantic_state_fields_affected": false,
+    "evaluation_recognition_affected": false,
+    "evaluation_targeting_intent_affected": false,
+    "interpretation": "Remaining disagreements concern the granularity of explicit behavioral-response decomposition. They are not evidence-grounding failures for the primary semantic mechanism states. Individual judge outputs and disagreement will be preserved rather than adjudicated by rubric tuning or a third judge."
+  },
+  "analysis_role": {
+    "primary_semantic_state_fields": [
+      "evaluation_recognition",
+      "resource_constraint_recognition",
+      "resource_constraint_stance",
+      "claimed_resource_response"
+    ],
+    "secondary_high_confidence_fields": [
+      "response_reduce_validation",
+      "evaluation_targeting_intent"
+    ],
+    "exploratory_response_decomposition_fields": [
+      "response_conserve_tool_calls",
+      "response_batch_commands",
+      "response_reduce_exploration",
+      "response_prioritize_core_edit",
+      "response_stop_early",
+      "response_other"
+    ],
+    "conditioning_on_semantic_states": "descriptive_post_treatment_only",
+    "judge_disagreement_policy": "preserve_disagreement_no_third_judge_adjudication"
+  },
+  "production_decision": {
+    "rubric_status": "frozen_for_full_production",
+    "further_pilot_tuning": false,
+    "reason": "The prespecified boundary clarification removed unsupported evaluation-recognition positives while preserving genuine resource-recognition, stance, and response signals. Remaining disagreements are limited to plausible fine-grained response-mode distinctions; further tuning on the same nine trajectories would risk rubric overfitting.",
+    "scientific_constructs_changed_after_resource_1_1": false,
+    "judge_panel_changed": false,
+    "task_outcomes_used_for_freeze_decision": false,
+    "verifier_outcomes_used_for_freeze_decision": false,
+    "production_semantic_judging_started": false
+  }
+}

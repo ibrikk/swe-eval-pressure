@@ -1,0 +1,87 @@
+{
+  "version": "resource-full-1.1",
+  "date": "2026-08-25",
+  "selection_status": "frozen_full_resource_semantic_universe_before_production_outputs",
+  "source_manifest_path": "/Users/ibrahim.khalilov/Documents/swe-eval-pressure/analysis/semantic-resource-v1/manifests/resource-stage-a-v1.1.json",
+  "source_manifest_sha256": "1ab4cf3074d3e4e57232adf0f965d479c8f23b3ecdc58c907eadfce442c5a2ca",
+  "semantic_schema_path": "/Users/ibrahim.khalilov/Documents/swe-eval-pressure/config/resource_semantic_schema_v1.json",
+  "semantic_schema_sha256": "4083d8075889bb84440847e6215a0064e55262884c048b242ef2fd3f3498fcfa",
+  "pilot_validation_path": "/Users/ibrahim.khalilov/Documents/swe-eval-pressure-behavior/config/resource_semantic_pilot_validation_v1.1.json",
+  "pilot_validation_sha256": "f147e20105948291952f3b7410dc42af836d67f02af1256f4b6a2c538be8020a",
+  "semantic_schema_version": "resource-1.1",
+  "rubric_version": "resource-1.1",
+  "semantic_view_version": "2.1",
+  "primary_profiles": [
+    "claude",
+    "fable",
+    "codex"
+  ],
+  "excluded_primary_profiles": {
+    "llama": "capability floor plus scaffold consumption not observably established"
+  },
+  "planned_resource_study_trajectories": 840,
+  "substantive_resource_study_trajectories": 823,
+  "semantic_eligible_trajectories": 618,
+  "core_judge_jobs": 1236,
+  "unique_cache_keys": 1236,
+  "primary_panel_size": 2,
+  "primary_judges": [
+    {
+      "family": "deepseek",
+      "model": "azure_ai/DeepSeek-V4-Pro"
+    },
+    {
+      "family": "gemini",
+      "model": "gemini/gemini-3.6-flash"
+    }
+  ],
+  "request_policy": {
+    "temperature": 0,
+    "response_format": {
+      "type": "json_object"
+    },
+    "max_tokens": 8192,
+    "timeout_seconds": 90,
+    "max_attempts_per_job": 3,
+    "retry_delays_seconds": [
+      0.0,
+      2.0,
+      5.0
+    ]
+  },
+  "judge_blinding": {
+    "hide_verifier_outcome": true,
+    "hide_overall_pass": true,
+    "hide_condition_label": true,
+    "hide_profile_effect_statistics": true,
+    "judge_only_observable_agent_authored_evidence": true
+  },
+  "analysis_policy": {
+    "primary_semantic_state_fields": [
+      "evaluation_recognition",
+      "resource_constraint_recognition",
+      "resource_constraint_stance",
+      "claimed_resource_response"
+    ],
+    "secondary_high_confidence_fields": [
+      "response_reduce_validation",
+      "evaluation_targeting_intent"
+    ],
+    "exploratory_response_decomposition_fields": [
+      "response_conserve_tool_calls",
+      "response_batch_commands",
+      "response_reduce_exploration",
+      "response_prioritize_core_edit",
+      "response_stop_early",
+      "response_other"
+    ],
+    "conditioning_on_semantic_states": "descriptive_post_treatment_only",
+    "judge_disagreement_policy": "preserve_disagreement_no_third_judge_adjudication"
+  },
+  "pilot_outputs_reused_as_production_outputs": false,
+  "resource_1_0_outputs_reused": false,
+  "outcome_based_job_selection": false,
+  "network_calls_before_freeze": 0,
+  "production_judge_calls_before_freeze": 0,
+  "behavior_code_git_head_at_freeze": "7f4f29bd263bfcee5d993fcfd51aee9025fa1739"
+}
