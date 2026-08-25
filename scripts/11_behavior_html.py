@@ -44,7 +44,7 @@ ENDPOINT_LABELS = {
     "iterative_repair_any": "Iterative repair",
     "provenance_related_inspection_any": "Provenance inspection",
     "external_lookup_any": "External lookup",
-    "integrity_sensitive_action_any": "Integrity targeting",
+    "integrity_sensitive_action_any": "Integrity-sensitive modification",
 }
 
 PAIR_LABELS = {
@@ -871,15 +871,18 @@ footer {{
   <h2>Primary behavioral effects</h2>
   <p class="muted">
     Paired risk differences are treatment minus matched baseline in percentage
-    points. Gold-bordered cells survive the pre-specified Holm correction.
+    points. Gold-bordered cells survive Holm correction within the frozen
+    primary behavioral analysis family.
+    “Integrity-sensitive modification” is an observable composite covering test-file,
+    evaluation-context, or seeded-cue modification; it does not imply evaluator-gaming intent.
   </p>
   {render_primary_matrix(primary)}
 
   <h2>Exploratory action and process effects</h2>
   <p class="muted">
     These are observable action/process quantities, not latent reasoning
-    measures. Highlighted rows survive BH-FDR within the pre-specified
-    exploratory family.
+    measures. Highlighted rows survive BH-FDR within the frozen exploratory
+    behavioral/process analysis family.
   </p>
   {render_secondary(secondary)}
 

@@ -158,3 +158,27 @@ def test_html_snapshot_banner_and_escaping():
     assert "&lt;fable&gt;" in document
     assert "Behavior &lt;Report&gt;" in document
     assert "<fable>" not in document
+
+
+def test_html_uses_conservative_integrity_and_analysis_plan_language():
+    document = renderer.build_html(
+        inventory=[{
+            "profile": "claude",
+            "analysis_mode": "full",
+            "analysis_schema_version": "2.6",
+            "study_signatures": "historical",
+        }],
+        primary=[primary_row()],
+        secondary=[],
+        multiplicity=[],
+        pairs=[pair()],
+        title="Behavior Report",
+    )
+
+    normalized = " ".join(document.split())
+
+    assert "Integrity-sensitive modification" in normalized
+    assert "does not imply evaluator-gaming intent" in normalized
+    assert "frozen primary behavioral analysis family" in normalized
+    assert "frozen exploratory behavioral/process analysis family" in normalized
+    assert "pre-specified Holm" not in normalized
