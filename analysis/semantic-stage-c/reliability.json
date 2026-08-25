@@ -1,0 +1,91 @@
+{
+  "report_version": "1.0",
+  "scope": "stage_c_semantic_measurement_reliability_only",
+  "outcome_blind": true,
+  "effective_trajectories": 100,
+  "effective_judge_jobs": 200,
+  "inherited_pilot_jobs": 20,
+  "new_dose_jobs": 180,
+  "terminal_job_status": {
+    "ok": 199,
+    "missing": 1
+  },
+  "judge_job_coverage": 0.995,
+  "attempts": {
+    "provider_attempts": 209,
+    "excess_attempts": 9,
+    "retry_jobs": 7,
+    "retry_job_rate": 0.035,
+    "attempt_count_distribution": {
+      "1": 193,
+      "2": 5,
+      "3": 2
+    }
+  },
+  "per_judge": {
+    "azure_ai/DeepSeek-V4-Pro": {
+      "jobs": 100,
+      "ok": 99,
+      "missing": 1,
+      "coverage": 0.99,
+      "provider_attempts": 106,
+      "retry_jobs": 4
+    },
+    "gemini/gemini-3.6-flash": {
+      "jobs": 100,
+      "ok": 100,
+      "missing": 0,
+      "coverage": 1.0,
+      "provider_attempts": 103,
+      "retry_jobs": 3
+    }
+  },
+  "failed_attempts": {
+    "failed_attempts": 10,
+    "status_counts": {
+      "invalid": 5,
+      "transport_error": 5
+    },
+    "exception_type_counts": {
+      "SSLError": 5
+    },
+    "validation_error_counts": {
+      "evaluation_recognition.evidence[0]: evidence quote is not a verbatim substring of the specified agent-authored block": 3,
+      "judgment keys mismatch: missing=[]; extra=['rubric_version', 'semantic_schema_version']": 2
+    }
+  },
+  "consensus": {
+    "trajectory_files": 100,
+    "field_comparisons": 500,
+    "agreement": 471,
+    "disagreement": 24,
+    "missing": 5,
+    "evaluable": 495,
+    "raw_agreement_given_evaluable": 0.9515151515151515,
+    "missing_field_rate": 0.01
+  },
+  "run_history": [
+    {
+      "path": "/Users/ibrahim.khalilov/Documents/swe-eval-pressure/analysis/semantic-multijudge-v1/dose-100/runs/run-20260825T060122046637Z.json",
+      "run_id": "20260825T060122046637Z",
+      "new_jobs": 180,
+      "provider_attempts": 188,
+      "after": {
+        "inherited_ok": 20,
+        "writable_ok": 179,
+        "writable_missing": 1
+      }
+    },
+    {
+      "path": "/Users/ibrahim.khalilov/Documents/swe-eval-pressure/analysis/semantic-multijudge-v1/dose-100/runs/run-20260825T154303657291Z.json",
+      "run_id": "20260825T154303657291Z",
+      "new_jobs": 0,
+      "provider_attempts": 0,
+      "after": {
+        "inherited_ok": 20,
+        "writable_ok": 179,
+        "writable_missing": 1
+      }
+    }
+  ]
+}
