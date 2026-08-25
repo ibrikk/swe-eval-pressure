@@ -246,3 +246,235 @@ def test_censored_planned_group_preserves_family_size():
     assert multiplicity[0]["family_size"] == 7
     assert multiplicity[0]["tested_family_size"] == 0
     assert multiplicity[0]["untested_family_size"] == 7
+
+
+from behavior_inference import (  # noqa: E402
+    SECONDARY_METRICS,
+    secondary_effect_rows,
+)
+
+
+def secondary_pair(
+    *,
+    pair_type="resource_effect",
+    channel="scaffold",
+    usable=1,
+    baseline=0,
+    treatment=0,
+):
+    row = {
+        "profile": "fable",
+        "pair_type": pair_type,
+        "channel": channel,
+        "baseline_condition": "eval_only",
+        "baseline_channel": channel,
+        "treatment_condition": (
+            "eval_resource_deprivation"
+            if pair_type == "resource_effect"
+            else "eval_financial"
+        ),
+        "treatment_channel": channel,
+        "pair_usable": usable,
+    }
+
+    for metric in SECONDARY_METRICS:
+        row[f"baseline_{metric}"] = (
+            baseline if usable else ""
+        )
+        row[f"treatment_{metric}"] = (
+            treatment if usable else ""
+        )
+
+    return row
+
+
+def test_resource_secondary_family_size():
+    rows = [
+        secondary_pair()
+        for _ in range(4)
+    ]
+
+    effects, multiplicity = (
+        secondary_effect_rows(
+            rows,
+            analysis_schema_version="2.6",
+            analysis_mode="resource",
+            study_signature="resource-study",
+            bootstrap_replicates=100,
+            sign_flip_replicates=1000,
+        )
+    )
+
+    assert len(SECONDARY_METRICS) == 23
+    assert len(effects) == 23
+    assert len(multiplicity) == 1
+
+    assert multiplicity[0]["family_size"] == 23
+    assert multiplicity[0]["tested_family_size"] == 23
+
+    assert {
+        row["family_name"]
+        for row in effects
+    } == {
+        "resource_secondary_behavior_process_bh"
+    }
+
+
+def test_known_secondary_signflip_and_bh_case():
+    rows = []
+
+    for _ in range(8):
+        item = secondary_pair()
+
+        item["baseline_validation_calls"] = 0
+        item["treatment_validation_calls"] = 1
+
+        rows.append(item)
+
+    effects, _ = secondary_effect_rows(
+        rows,
+        analysis_schema_version="2.6",
+        analysis_mode="resource",
+        study_signature="resource-study",
+        bootstrap_replicates=100,
+        sign_flip_replicates=1000,
+    )
+
+    validation = next(
+        row
+        for row in effects
+        if row["metric"] == "validation_calls"
+    )
+
+    assert validation["n_pairs"] == 8
+    assert validation["mean_delta"] == pytest.approx(1.0)
+
+    # Eight same-direction non-zero paired differences:
+    # 2 / 2^8 = 0.0078125.
+    assert validation["sign_flip_p"] == pytest.approx(
+        0.0078125
+    )
+
+    # One small p-value in a 23-hypothesis BH family.
+    assert validation["bh_adjusted_q"] == pytest.approx(
+        0.1796875
+    )
+
+    assert validation["unadjusted_reject"] == 1
+    assert validation["adjusted_reject"] == 0
+
+
+def test_secondary_missing_metric_is_not_zero():
+    rows = [
+        secondary_pair()
+        for _ in range(4)
+    ]
+
+    rows[0]["baseline_prompt_tokens"] = ""
+    rows[0]["treatment_prompt_tokens"] = ""
+
+    effects, _ = secondary_effect_rows(
+        rows,
+        analysis_schema_version="2.6",
+        analysis_mode="resource",
+        study_signature="resource-study",
+        bootstrap_replicates=100,
+        sign_flip_replicates=100,
+    )
+
+    prompt = next(
+        row
+        for row in effects
+        if row["metric"] == "prompt_tokens"
+    )
+
+    assert prompt["pair_usable_pairs"] == 4
+    assert prompt["n_pairs"] == 3
+    assert prompt["endpoint_missing_pairs"] == 1
+
+
+def test_resource_eval_effect_excluded_from_secondary_family():
+    rows = [
+        secondary_pair(
+            pair_type="eval_effect",
+        )
+        for _ in range(4)
+    ]
+
+    effects, multiplicity = secondary_effect_rows(
+        rows,
+        analysis_schema_version="2.6",
+        analysis_mode="resource",
+        study_signature="resource-study",
+        bootstrap_replicates=100,
+        sign_flip_replicates=100,
+    )
+
+    assert effects == []
+    assert multiplicity == []
+
+
+def test_historical_secondary_spans_contrasts():
+    rows = []
+
+    for pair_type in (
+        "eval_effect",
+        "financial_effect",
+    ):
+        rows.extend(
+            secondary_pair(
+                pair_type=pair_type,
+                channel="root",
+            )
+            for _ in range(3)
+        )
+
+    effects, multiplicity = secondary_effect_rows(
+        rows,
+        analysis_schema_version="2.6",
+        analysis_mode="full",
+        study_signature="full-study",
+        bootstrap_replicates=100,
+        sign_flip_replicates=100,
+    )
+
+    assert len(effects) == 46
+    assert multiplicity[0]["family_size"] == 46
+    assert multiplicity[0]["tested_family_size"] == 46
+
+
+def test_log1p_summary_only_for_process_metric():
+    rows = []
+
+    for value in (1, 2, 3):
+        item = secondary_pair()
+        item["baseline_prompt_tokens"] = value
+        item["treatment_prompt_tokens"] = 2 * value
+        rows.append(item)
+
+    effects, _ = secondary_effect_rows(
+        rows,
+        analysis_schema_version="2.6",
+        analysis_mode="resource",
+        study_signature="resource-study",
+        bootstrap_replicates=100,
+        sign_flip_replicates=100,
+    )
+
+    prompt = next(
+        row
+        for row in effects
+        if row["metric"] == "prompt_tokens"
+    )
+
+    search = next(
+        row
+        for row in effects
+        if row["metric"] == "repo_search_calls"
+    )
+
+    assert prompt["mean_log1p_delta"] != ""
+    assert prompt["median_log1p_delta"] != ""
+
+    assert search["mean_log1p_delta"] == ""
+    assert search["median_log1p_delta"] == ""

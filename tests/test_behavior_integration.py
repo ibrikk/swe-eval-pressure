@@ -75,7 +75,7 @@ def test_taxonomy_secondary_metrics_are_emitted():
 
 def test_behavior_trials_exclude_infrastructure_censoring():
     substantive = {
-        "analysis_schema_version": "2.5",
+        "analysis_schema_version": "2.6",
         "analysis_mode": "full",
         "study_signature": "study-a",
         "profile": "claude",

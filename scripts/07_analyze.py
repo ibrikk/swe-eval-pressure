@@ -32,7 +32,9 @@ from typing import Any, Iterable
 from behavior_inference import (
     BEHAVIOR_BINARY_EFFECT_FIELDS,
     BEHAVIOR_MULTIPLICITY_FIELDS,
+    BEHAVIOR_SECONDARY_EFFECT_FIELDS,
     primary_binary_effect_rows,
+    secondary_effect_rows,
 )
 from behavior_metrics import (
     PRIMARY_BINARY_ENDPOINTS,
@@ -47,7 +49,7 @@ from behavior_tables import (
 )
 from litellm_pool import RateLimitKeyPool, parse_litellm_keys, parse_reset_epoch
 
-ANALYZER_SCHEMA = "2.5"
+ANALYZER_SCHEMA = "2.6"
 SEMANTIC_JUDGE_VERSION = "2.6"
 SEMANTIC_JUDGE_TEMPERATURE = 0.0
 
@@ -2583,7 +2585,8 @@ def report_markdown(
             "- `behavior_prevalence.csv` — descriptive primary-behavior prevalence by profile × condition × placement.",
             "- `matched_behavior_pairs.csv` — same-task behavioral baseline/treatment values and deltas with censored sides left missing.",
             "- `behavior_binary_effects.csv` — primary paired binary behavioral effects, bootstrap CIs, exact McNemar tests, and Holm-adjusted p-values.",
-            "- `behavior_multiplicity.csv` — explicit primary behavioral multiplicity-family accounting.",
+            "- `behavior_secondary_effects.csv` — exploratory paired action/process effects, bootstrap CIs, direction counts, sign-flip tests, and BH-FDR q-values.",
+            "- `behavior_multiplicity.csv` — explicit primary Holm and secondary BH-FDR family accounting.",
             "- `matched_pairs.csv` — planned and usable within-task comparisons, including legacy deltas.",
             "- `coverage.csv` — condition/placement coverage for partial or complete runs.",
             "- `terminal_status.csv` — execution/censoring status counts.",
@@ -2916,12 +2919,27 @@ def main() -> None:
 
     (
         behavior_binary_effects,
-        behavior_multiplicity,
+        primary_behavior_multiplicity,
     ) = primary_binary_effect_rows(
         matched_behavior_pairs,
         analysis_schema_version=ANALYZER_SCHEMA,
         analysis_mode=args.mode,
         study_signature=signature,
+    )
+
+    (
+        behavior_secondary_effects,
+        secondary_behavior_multiplicity,
+    ) = secondary_effect_rows(
+        matched_behavior_pairs,
+        analysis_schema_version=ANALYZER_SCHEMA,
+        analysis_mode=args.mode,
+        study_signature=signature,
+    )
+
+    behavior_multiplicity = (
+        primary_behavior_multiplicity
+        + secondary_behavior_multiplicity
     )
 
     # Canonical row-level outputs.
@@ -2946,6 +2964,11 @@ def main() -> None:
         output_dir / "behavior_binary_effects.csv",
         behavior_binary_effects,
         fieldnames=BEHAVIOR_BINARY_EFFECT_FIELDS,
+    )
+    write_csv(
+        output_dir / "behavior_secondary_effects.csv",
+        behavior_secondary_effects,
+        fieldnames=BEHAVIOR_SECONDARY_EFFECT_FIELDS,
     )
     write_csv(
         output_dir / "behavior_multiplicity.csv",
@@ -3017,6 +3040,9 @@ def main() -> None:
         ),
         "behavior_primary_binary_effect_rows": len(
             behavior_binary_effects
+        ),
+        "behavior_secondary_effect_rows": len(
+            behavior_secondary_effects
         ),
         "behavior_multiplicity_families": len(
             behavior_multiplicity
