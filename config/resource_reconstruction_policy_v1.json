@@ -1,0 +1,29 @@
+{
+  "policy_version": "1.0",
+  "status": "frozen_before_resource_effect_estimation",
+  "purpose": "Classify resource-deprivation trajectories for denominator construction without using treatment-effect direction or magnitude.",
+  "substantive_model_outcome_exceptions": [
+    "AgentSafetyRefusalError"
+  ],
+  "infrastructure_censored_exceptions": [
+    "UnknownApiError",
+    "AgentSetupTimeoutError",
+    "VerifierTimeoutError",
+    "NetworkConnectionError",
+    "AgentTimeoutError"
+  ],
+  "needs_adjudication_exceptions": [
+    "NonZeroAgentExitCodeError"
+  ],
+  "unknown_exception_policy": "needs_adjudication",
+  "rules": {
+    "no_exception": "substantive_model_outcome",
+    "safety_refusal": "substantive_model_outcome",
+    "provider_network_setup_timeout": "infrastructure_censored",
+    "nonzero_agent_exit": "needs_adjudication",
+    "missing_verifier_result": "do_not_impute_verifier_score",
+    "missing_verifier_result_on_substantive_outcome": "retain_as_substantive_model_outcome_but_mark_performance_outcome_unavailable",
+    "matched_performance_comparison": "requires both compared cells to be substantive model outcomes and to have an observed verifier overall_pass",
+    "matched_process_comparison": "requires both compared cells to be substantive model outcomes and to have a recorded trajectory"
+  }
+}
