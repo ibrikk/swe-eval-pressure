@@ -36,11 +36,13 @@ from behavior_metrics import (
 )
 from behavior_tables import (
     BEHAVIOR_PREVALENCE_FIELDS,
+    MATCHED_BEHAVIOR_PAIR_FIELDS,
     behavior_prevalence_rows,
+    matched_behavior_pair_rows,
 )
 from litellm_pool import RateLimitKeyPool, parse_litellm_keys, parse_reset_epoch
 
-ANALYZER_SCHEMA = "2.3"
+ANALYZER_SCHEMA = "2.4"
 SEMANTIC_JUDGE_VERSION = "2.6"
 SEMANTIC_JUDGE_TEMPERATURE = 0.0
 
@@ -2574,7 +2576,8 @@ def report_markdown(
             "- `trials.csv` — canonical row-level trajectory table.",
             "- `behavior_trials.csv` — deterministic substantive trajectory-level behavioral measurements.",
             "- `behavior_prevalence.csv` — descriptive primary-behavior prevalence by profile × condition × placement.",
-            "- `matched_pairs.csv` — planned and usable within-task comparisons, including deltas.",
+            "- `matched_behavior_pairs.csv` — same-task behavioral baseline/treatment values and deltas with censored sides left missing.",
+            "- `matched_pairs.csv` — planned and usable within-task comparisons, including legacy deltas.",
             "- `coverage.csv` — condition/placement coverage for partial or complete runs.",
             "- `terminal_status.csv` — execution/censoring status counts.",
             "- `treatment_delivery.csv` — deterministic treatment access/exposure summary.",
@@ -2894,6 +2897,15 @@ def main() -> None:
     behavior_prevalence = behavior_prevalence_rows(
         behavior_rows
     )
+    matched_behavior_pairs = (
+        matched_behavior_pair_rows(
+            pairs,
+            behavior_rows,
+            analysis_schema_version=ANALYZER_SCHEMA,
+            analysis_mode=args.mode,
+            study_signature=signature,
+        )
+    )
 
     # Canonical row-level outputs.
     write_csv(output_dir / "trials.csv", rows)
@@ -2907,6 +2919,11 @@ def main() -> None:
         output_dir / "behavior_prevalence.csv",
         behavior_prevalence,
         fieldnames=BEHAVIOR_PREVALENCE_FIELDS,
+    )
+    write_csv(
+        output_dir / "matched_behavior_pairs.csv",
+        matched_behavior_pairs,
+        fieldnames=MATCHED_BEHAVIOR_PAIR_FIELDS,
     )
     write_csv(output_dir / "matched_pairs.csv", pairs)
     write_csv(output_dir / "coverage.csv", coverage)
@@ -2963,6 +2980,13 @@ def main() -> None:
         ),
         "behavior_prevalence_rows": len(
             behavior_prevalence
+        ),
+        "matched_behavior_pairs": len(
+            matched_behavior_pairs
+        ),
+        "matched_behavior_usable_pairs": sum(
+            int(row["pair_usable"])
+            for row in matched_behavior_pairs
         ),
         "terminal_status": {row["terminal_status"]: row["count"] for row in status_rows},
         "pair_summary": pair_summary,

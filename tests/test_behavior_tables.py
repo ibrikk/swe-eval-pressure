@@ -160,3 +160,203 @@ def test_invalid_binary_endpoint_fails_closed():
 
 def test_empty_input_returns_empty_table():
     assert behavior_prevalence_rows([]) == []
+
+
+from behavior_tables import (  # noqa: E402
+    BEHAVIOR_PAIR_METRICS,
+    matched_behavior_pair_rows,
+)
+
+
+def behavior_pair_trial(
+    *,
+    task,
+    condition,
+    channel,
+    replicate=1,
+    search=0,
+    validation=0,
+    actions=5,
+    overall_pass=0,
+):
+    result = {
+        "base_task_id": task,
+        "condition": condition,
+        "channel": channel,
+        "replicate_index": replicate,
+        "broad_repo_search_any": search,
+        "validation_any": validation,
+        "behavioral_action_calls": actions,
+        "overall_pass": overall_pass,
+    }
+
+    for endpoint in PRIMARY_BINARY_ENDPOINTS:
+        result.setdefault(endpoint, 0)
+
+    for metric in BEHAVIOR_PAIR_METRICS:
+        result.setdefault(metric, 0)
+
+    result["broad_repo_search_any"] = search
+    result["validation_any"] = validation
+    result["behavioral_action_calls"] = actions
+    result["overall_pass"] = overall_pass
+
+    return result
+
+
+def experimental_pair(
+    *,
+    task="task-a",
+    pair_type="resource_effect",
+    baseline_condition="eval_only",
+    baseline_channel="scaffold",
+    treatment_condition="eval_resource_deprivation",
+    treatment_channel="scaffold",
+    pair_state="complete_usable",
+    pair_usable=1,
+):
+    return {
+        "profile": "fable",
+        "base_task_id": task,
+        "pair_type": pair_type,
+        "channel": treatment_channel,
+        "baseline_condition": baseline_condition,
+        "baseline_channel": baseline_channel,
+        "treatment_condition": treatment_condition,
+        "treatment_channel": treatment_channel,
+        "replicate_index": 1,
+        "pair_state": pair_state,
+        "pair_usable": pair_usable,
+        "baseline_trial": "base-trial",
+        "treatment_trial": "treat-trial",
+        "baseline_terminal_status": "completed",
+        "treatment_terminal_status": "completed",
+    }
+
+
+def test_matched_behavior_pair_delta():
+    baseline = behavior_pair_trial(
+        task="task-a",
+        condition="eval_only",
+        channel="scaffold",
+        search=1,
+        validation=1,
+        actions=10,
+        overall_pass=1,
+    )
+
+    treatment = behavior_pair_trial(
+        task="task-a",
+        condition="eval_resource_deprivation",
+        channel="scaffold",
+        search=0,
+        validation=1,
+        actions=7,
+        overall_pass=0,
+    )
+
+    rows = matched_behavior_pair_rows(
+        [experimental_pair()],
+        [baseline, treatment],
+        analysis_schema_version="2.4",
+        analysis_mode="resource",
+        study_signature="study-r",
+    )
+
+    assert len(rows) == 1
+
+    result = rows[0]
+
+    assert result["pair_usable"] == 1
+
+    assert (
+        result[
+            "delta_broad_repo_search_any"
+        ]
+        == -1
+    )
+
+    assert result["delta_validation_any"] == 0
+
+    assert (
+        result[
+            "delta_behavioral_action_calls"
+        ]
+        == -3
+    )
+
+    assert result["delta_overall_pass"] == -1
+
+
+def test_censored_side_is_not_imputed_zero():
+    baseline = behavior_pair_trial(
+        task="task-a",
+        condition="eval_only",
+        channel="scaffold",
+        validation=1,
+    )
+
+    pair = experimental_pair(
+        pair_state="treatment_censored",
+        pair_usable=0,
+    )
+
+    rows = matched_behavior_pair_rows(
+        [pair],
+        [baseline],
+        analysis_schema_version="2.4",
+        analysis_mode="resource",
+        study_signature="study-r",
+    )
+
+    result = rows[0]
+
+    assert (
+        result["baseline_validation_any"]
+        == 1
+    )
+    assert (
+        result["treatment_validation_any"]
+        == ""
+    )
+    assert result["delta_validation_any"] == ""
+
+
+def test_usable_pair_missing_behavior_fails():
+    baseline = behavior_pair_trial(
+        task="task-a",
+        condition="eval_only",
+        channel="scaffold",
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="usable experimental pair",
+    ):
+        matched_behavior_pair_rows(
+            [experimental_pair()],
+            [baseline],
+            analysis_schema_version="2.4",
+            analysis_mode="resource",
+            study_signature="study-r",
+        )
+
+
+def test_duplicate_behavior_pair_key_fails():
+    baseline = behavior_pair_trial(
+        task="task-a",
+        condition="eval_only",
+        channel="scaffold",
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="duplicate substantive behavioral row",
+    ):
+        matched_behavior_pair_rows(
+            [],
+            [baseline, dict(baseline)],
+            analysis_schema_version="2.4",
+            analysis_mode="resource",
+            study_signature="study-r",
+        )
