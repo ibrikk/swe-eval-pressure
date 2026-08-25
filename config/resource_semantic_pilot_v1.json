@@ -1,0 +1,241 @@
+{
+  "pilot_version": "resource-pilot-1.0",
+  "selection_status": "frozen_before_resource_semantic_outcomes",
+  "selection_method": "For each capable profile x condition cell, choose the trajectory with the lexicographically smallest SHA256 of 'resource-pilot-1.0|profile|condition|trial_name'.",
+  "source_manifest_path": "/Users/ibrahim.khalilov/Documents/swe-eval-pressure/analysis/semantic-resource-v1/manifests/resource-stage-a.json",
+  "source_manifest_sha256": "a9d065e77fb13f7c55b2871f1d850047894d8f455b2d54aafe9e32b71e1ec62f",
+  "semantic_schema_version": "resource-1.0",
+  "rubric_version": "resource-1.0",
+  "semantic_view_version": "2.1",
+  "trajectory_count": 9,
+  "core_judge_jobs": 18,
+  "profile_counts": {
+    "claude": 3,
+    "fable": 3,
+    "codex": 3
+  },
+  "condition_counts": {
+    "clean": 3,
+    "eval_only": 3,
+    "eval_resource_deprivation": 3
+  },
+  "judge_counts": {
+    "azure_ai/DeepSeek-V4-Pro": 9,
+    "gemini/gemini-3.6-flash": 9
+  },
+  "primary_judges": [
+    {
+      "family": "deepseek",
+      "model": "azure_ai/DeepSeek-V4-Pro"
+    },
+    {
+      "family": "gemini",
+      "model": "gemini/gemini-3.6-flash"
+    }
+  ],
+  "outcome_based_selection": false,
+  "verifier_outcomes_used_for_selection": false,
+  "semantic_outputs_used_for_selection": false,
+  "network_calls": 0,
+  "judge_calls": 0,
+  "trials": [
+    {
+      "profile": "claude",
+      "trial_name": "ea-10d4b426-clean-n__mjuieB3",
+      "condition": "clean",
+      "placement": "none",
+      "pressure_type": "none",
+      "trajectory_path": "/Users/ibrahim.khalilov/Documents/swe-eval-pressure/results/resource/swe-eval-pressure-resource-claude-chunk-1-size-30-20260824-165753/swe-eval-pressure-resource-claude-chunk-1-size-30-20260824-165753/ea-10d4b426-clean-n__mjuieB3/agent/trajectory.json",
+      "trajectory_hash": "4a453c5f9c9b2e6ed7a8a35b08fc88d33e530f74d2d6dafc81ab6fd960171072",
+      "selection_hash": "0230c0a1fb857dc578fc5d2c5e02705a41cd543b1d2ade0ad9551fc080d07a69",
+      "judge_jobs": [
+        {
+          "judge_family": "deepseek",
+          "judge_model": "azure_ai/DeepSeek-V4-Pro",
+          "cache_key": "573155ce74695ef1343b13c82ab262a23819705eedcc11adec7eabb1e0555136"
+        },
+        {
+          "judge_family": "gemini",
+          "judge_model": "gemini/gemini-3.6-flash",
+          "cache_key": "ac131f63a5dfc917af5048735745fb229681c2b427d809dd9e30db4cecef5280"
+        }
+      ]
+    },
+    {
+      "profile": "claude",
+      "trial_name": "ea-8265afb6-eval-scaf__hkyUrqj",
+      "condition": "eval_only",
+      "placement": "scaffold",
+      "pressure_type": "none",
+      "trajectory_path": "/Users/ibrahim.khalilov/Documents/swe-eval-pressure/results/resource/swe-eval-pressure-resource-claude-chunk-2-size-30-20260824-220347/swe-eval-pressure-resource-claude-chunk-2-size-30-20260824-220347/ea-8265afb6-eval-scaf__hkyUrqj/agent/trajectory.json",
+      "trajectory_hash": "7c3c68a272601ffccf4590010f845e543e40826b01a4d38ca70143c98f15afeb",
+      "selection_hash": "052a499551c9420b663be1dcea72b007db9c99673ffcf57ab7d1c5cb26b947bb",
+      "judge_jobs": [
+        {
+          "judge_family": "deepseek",
+          "judge_model": "azure_ai/DeepSeek-V4-Pro",
+          "cache_key": "8251f57434bc6254336a2837b2b259377780e667125ec8dd8113dcbd4b1174c9"
+        },
+        {
+          "judge_family": "gemini",
+          "judge_model": "gemini/gemini-3.6-flash",
+          "cache_key": "e9bad1a690a1d3e6608206aa8e1632e2c00019d50397d0161f6fd9376543269d"
+        }
+      ]
+    },
+    {
+      "profile": "claude",
+      "trial_name": "ea-10d4b445-eval-resource-scaf__XZ7R7Ea",
+      "condition": "eval_resource_deprivation",
+      "placement": "scaffold",
+      "pressure_type": "resource_deprivation",
+      "trajectory_path": "/Users/ibrahim.khalilov/Documents/swe-eval-pressure/results/resource/swe-eval-pressure-resource-claude-chunk-1-size-30-20260824-165753/swe-eval-pressure-resource-claude-chunk-1-size-30-20260824-165753/ea-10d4b445-eval-resource-scaf__XZ7R7Ea/agent/trajectory.json",
+      "trajectory_hash": "2a071416e6df074cec020b4c144b5b40ccab729ef7e2e0471961b8d3a2fbf06e",
+      "selection_hash": "00801082f9a9b95274c7718a604b19306f8fb8222cbf3a437dba93d17ceb5c27",
+      "judge_jobs": [
+        {
+          "judge_family": "deepseek",
+          "judge_model": "azure_ai/DeepSeek-V4-Pro",
+          "cache_key": "deaa272876e33ee9b085ca0392af803dc6820b10cf5358a3883be3efc46b4816"
+        },
+        {
+          "judge_family": "gemini",
+          "judge_model": "gemini/gemini-3.6-flash",
+          "cache_key": "50fdec88794f4d1a41077e93c3c072ed065a04515fa18e52f0de332542263c21"
+        }
+      ]
+    },
+    {
+      "profile": "fable",
+      "trial_name": "ea-ed988134-clean-n__Yojmcfj",
+      "condition": "clean",
+      "placement": "none",
+      "pressure_type": "none",
+      "trajectory_path": "/Users/ibrahim.khalilov/Documents/swe-eval-pressure/results/resource/swe-eval-pressure-resource-fable-chunk-2-size-30-20260824-220347/swe-eval-pressure-resource-fable-chunk-2-size-30-20260824-220347/ea-ed988134-clean-n__Yojmcfj/agent/trajectory.json",
+      "trajectory_hash": "9d9a224ebac5c5bd31eb1caa1c2a679458b127be6cb771f53f0d1e90e0696a75",
+      "selection_hash": "0402f17194475f9e3c84adf00282991df1f8a7d4311b53232476dcf261479ba0",
+      "judge_jobs": [
+        {
+          "judge_family": "deepseek",
+          "judge_model": "azure_ai/DeepSeek-V4-Pro",
+          "cache_key": "432cc0a5c04032d3b694260b56275985593a26fba1549cc61227ee724d1a5651"
+        },
+        {
+          "judge_family": "gemini",
+          "judge_model": "gemini/gemini-3.6-flash",
+          "cache_key": "c51e2ddaa361ef9da540e96cc98d770ce7c260a5b6074192168cadf687f829f8"
+        }
+      ]
+    },
+    {
+      "profile": "fable",
+      "trial_name": "ea-10d4b458-eval-scaf__Dq8AJxL",
+      "condition": "eval_only",
+      "placement": "scaffold",
+      "pressure_type": "none",
+      "trajectory_path": "/Users/ibrahim.khalilov/Documents/swe-eval-pressure/results/resource/swe-eval-pressure-resource-fable-chunk-1-size-30-20260824-165753/swe-eval-pressure-resource-fable-chunk-1-size-30-20260824-165753/ea-10d4b458-eval-scaf__Dq8AJxL/agent/trajectory.json",
+      "trajectory_hash": "07d96c9674571f83d89d25d0f15ffff76d397bba0f7e65d111aaf20eb56e790f",
+      "selection_hash": "001786facb76a51b1be0b26a4f44572880f76f86e054a3f9e2eb388b3d144478",
+      "judge_jobs": [
+        {
+          "judge_family": "deepseek",
+          "judge_model": "azure_ai/DeepSeek-V4-Pro",
+          "cache_key": "0b6d87f0c9a448bd8ff789bb2749106b8f4a81c593d114faecd41a4b516db8c7"
+        },
+        {
+          "judge_family": "gemini",
+          "judge_model": "gemini/gemini-3.6-flash",
+          "cache_key": "fc87ba458a80b7bdef1ec37cf2a0896bcbca104430b010f46cba0b2615a0f01b"
+        }
+      ]
+    },
+    {
+      "profile": "fable",
+      "trial_name": "ea-8265afb5-eval-resource-scaf__uBLNfHK",
+      "condition": "eval_resource_deprivation",
+      "placement": "scaffold",
+      "pressure_type": "resource_deprivation",
+      "trajectory_path": "/Users/ibrahim.khalilov/Documents/swe-eval-pressure/results/resource/swe-eval-pressure-resource-fable-chunk-2-size-30-20260824-220347/swe-eval-pressure-resource-fable-chunk-2-size-30-20260824-220347/ea-8265afb5-eval-resource-scaf__uBLNfHK/agent/trajectory.json",
+      "trajectory_hash": "f84b9381b12f2977d488cb2894f217ccbc495346edab4e7967c744dd757fbe3f",
+      "selection_hash": "03713e73a46e78f1c57dd82ccb5c31b7b6d0f18fa0e69119ef416288cf6d36b0",
+      "judge_jobs": [
+        {
+          "judge_family": "deepseek",
+          "judge_model": "azure_ai/DeepSeek-V4-Pro",
+          "cache_key": "2d5f8862719d3fa54f7dc75c9634e665514a3b0a7c8a6d0d6f7ec4614ba3c0e8"
+        },
+        {
+          "judge_family": "gemini",
+          "judge_model": "gemini/gemini-3.6-flash",
+          "cache_key": "480c9ce33965c5abbe942dda234db838ca2117f436ae8c0638182fdda7b2c337"
+        }
+      ]
+    },
+    {
+      "profile": "codex",
+      "trial_name": "ea-8265afba-clean-n__qWCae5L",
+      "condition": "clean",
+      "placement": "none",
+      "pressure_type": "none",
+      "trajectory_path": "/Users/ibrahim.khalilov/Documents/swe-eval-pressure/results/resource/swe-eval-pressure-resource-codex-chunk-3-size-30-20260825-040627/swe-eval-pressure-resource-codex-chunk-3-size-30-20260825-040627/ea-8265afba-clean-n__qWCae5L/agent/trajectory.json",
+      "trajectory_hash": "bcf63f9509d91f80e971cfca1e2d9735685462cae034087ddec8038447216d7c",
+      "selection_hash": "03e7ecf061bf9fa05cbfa0e906c1e070ee728a828900029468963c956e3ef110",
+      "judge_jobs": [
+        {
+          "judge_family": "deepseek",
+          "judge_model": "azure_ai/DeepSeek-V4-Pro",
+          "cache_key": "f404602fe3421616171f1a72d35a6daef99b900d5313a029d306fbd1c5cd1eb3"
+        },
+        {
+          "judge_family": "gemini",
+          "judge_model": "gemini/gemini-3.6-flash",
+          "cache_key": "fe0cdabb215a3494c78505643eed8fc69f16439a387c6572df7363ead7f0c8f9"
+        }
+      ]
+    },
+    {
+      "profile": "codex",
+      "trial_name": "ea-8265afb8-eval-scaf__AJbpXxR",
+      "condition": "eval_only",
+      "placement": "scaffold",
+      "pressure_type": "none",
+      "trajectory_path": "/Users/ibrahim.khalilov/Documents/swe-eval-pressure/results/resource/swe-eval-pressure-resource-codex-chunk-2-size-30-20260824-220347/swe-eval-pressure-resource-codex-chunk-2-size-30-20260824-220347/ea-8265afb8-eval-scaf__AJbpXxR/agent/trajectory.json",
+      "trajectory_hash": "c539665665871e1e8abebecd122f190268986d4cb20dcc5ec211dd167e5268fe",
+      "selection_hash": "0ef90b15a192ee1944da55dc0cecbcb288205f445f113714948501186e33d0e9",
+      "judge_jobs": [
+        {
+          "judge_family": "deepseek",
+          "judge_model": "azure_ai/DeepSeek-V4-Pro",
+          "cache_key": "3d765a3ca91e6b1bc1987d8354d3f58e8715ac2241a735ffc7813e0e42f5865d"
+        },
+        {
+          "judge_family": "gemini",
+          "judge_model": "gemini/gemini-3.6-flash",
+          "cache_key": "69331400f26c87799e188d7e6a06f893dceb8d7fa7dc4e2699c1cd599ba90550"
+        }
+      ]
+    },
+    {
+      "profile": "codex",
+      "trial_name": "ea-8265afb8-eval-resource-scaf__55Byetf",
+      "condition": "eval_resource_deprivation",
+      "placement": "scaffold",
+      "pressure_type": "resource_deprivation",
+      "trajectory_path": "/Users/ibrahim.khalilov/Documents/swe-eval-pressure/results/resource/swe-eval-pressure-resource-codex-chunk-2-size-30-20260824-220347/swe-eval-pressure-resource-codex-chunk-2-size-30-20260824-220347/ea-8265afb8-eval-resource-scaf__55Byetf/agent/trajectory.json",
+      "trajectory_hash": "4aea6f0b4c0ca05725735c93fe0de54ad93f308f607d13b784dd1dfe72e75d09",
+      "selection_hash": "024e6b1aec69468b8f5fa474ad05b16209e0960147f78304e5799f417f2020e8",
+      "judge_jobs": [
+        {
+          "judge_family": "deepseek",
+          "judge_model": "azure_ai/DeepSeek-V4-Pro",
+          "cache_key": "43230f7492d1e7284b265957d06d87948d0e3a5264e0b5a0613f3e623744e7cd"
+        },
+        {
+          "judge_family": "gemini",
+          "judge_model": "gemini/gemini-3.6-flash",
+          "cache_key": "85540e1bf4d4c62be70918fd6bfb7421409b53cb6dab3909e790b8b5a5193487"
+        }
+      ]
+    }
+  ]
+}
