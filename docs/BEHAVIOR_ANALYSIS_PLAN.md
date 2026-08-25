@@ -47,15 +47,21 @@ Primary binary endpoints:
 2. `test_inspection_any`
 3. `validation_any`
 4. `iterative_repair_any`
-5. `provenance_check_any`
+5. `provenance_related_inspection_any`
 6. `external_lookup_any`
-7. `integrity_targeting_any`
+7. `integrity_sensitive_action_any`
 
 No weighted aggregate "behavior score" is used.
 
+Deterministic endpoint names intentionally describe observable actions rather than
+latent intent. In particular, provenance-related inspection does not imply distrust,
+and integrity-sensitive modification does not by itself imply evaluator gaming.
+Stronger intent/stance labels belong to the later human-validated semantic layer.
+
+
 Secondary action-intensity measurements include search counts, read counts, unique
 files/directories inspected, validation counts, edit counts, edit-validation cycles,
-Git/provenance checks, external lookups, and integrity-targeting events.
+Git/provenance checks, external lookups, and integrity-sensitive events.
 
 Process-resource measurements such as tool calls, trajectory steps, prompt/completion
 tokens, and duration are kept separate from action behavior. Increased process-resource

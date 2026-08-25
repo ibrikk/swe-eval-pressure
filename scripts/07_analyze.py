@@ -532,9 +532,20 @@ def normalize_tool_name(name: str, args: dict[str, Any]) -> str:
         return "edit"
     if low in {"write", "write_file", "create_file", "save_file"}:
         return "write"
-    if low in {"webfetch", "web_fetch", "fetch_url", "fetch"}:
+    if low in {
+        "webfetch",
+        "web_fetch",
+        "web_fetch_call",
+        "fetch_url",
+        "fetch",
+    }:
         return "web_fetch"
-    if low in {"websearch", "web_search", "search_web"}:
+    if low in {
+        "websearch",
+        "web_search",
+        "web_search_call",
+        "search_web",
+    }:
         return "web_search"
     if low in {"grep", "rg", "search", "search_file"}:
         return "grep"
@@ -579,6 +590,321 @@ def observation_failed(content: str) -> bool:
         r"\btool_error\b",
     ]
     return any(re.search(pattern, low) for pattern in patterns)
+
+
+
+MSWEA_BASH_RE = re.compile(
+    r"```mswea_bash_command\s*\n?(.*?)```",
+    re.S | re.I,
+)
+
+MSWEA_COMPLETION_SENTINEL = "echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT"
+
+
+def step_observation_text(step: dict[str, Any]) -> str:
+    """Flatten one trajectory step's observation without losing nested content."""
+    observation = step.get("observation")
+    if observation is None:
+        return ""
+    return "\n".join(all_strings(observation))
+
+
+def nested_returncode(content: str) -> int | None:
+    """Recover Mini-SWE returncode from nested JSON observation content."""
+    if not content:
+        return None
+
+    candidates: list[Any] = [content]
+
+    # Mini-SWE commonly stores:
+    # observation.results[].content =
+    #   '{"returncode": 1, "output": "..."}'
+    try:
+        parsed = json.loads(content)
+        candidates.append(parsed)
+    except Exception:
+        pass
+
+    while candidates:
+        item = candidates.pop(0)
+
+        if isinstance(item, dict):
+            if "returncode" in item:
+                try:
+                    return int(item["returncode"])
+                except (TypeError, ValueError):
+                    pass
+
+            candidates.extend(item.values())
+            continue
+
+        if isinstance(item, list):
+            candidates.extend(item)
+            continue
+
+        if isinstance(item, str):
+            stripped = item.strip()
+
+            try:
+                parsed = json.loads(stripped)
+            except Exception:
+                parsed = None
+
+            if parsed is not None and parsed != item:
+                candidates.append(parsed)
+
+            match = re.search(
+                r'["\']?returncode["\']?\s*:\s*(-?\d+)',
+                stripped,
+            )
+            if match:
+                return int(match.group(1))
+
+    return None
+
+
+def behavior_observation_failed(content: str) -> int:
+    """Failure flag for canonical behavioral actions.
+
+    This is intentionally separate from historical extract_tools() semantics.
+    """
+    rc = nested_returncode(content)
+    if rc is not None:
+        return int(rc != 0)
+
+    return int(bool(content) and observation_failed(content))
+
+
+def mswea_command_from_step(step: dict[str, Any]) -> str:
+    """Recover one Mini-SWE shell action, deduplicating message/reasoning."""
+    message = step.get("message")
+    reasoning = step.get("reasoning_content")
+
+    message = message if isinstance(message, str) else ""
+    reasoning = reasoning if isinstance(reasoning, str) else ""
+
+    msg_match = MSWEA_BASH_RE.search(message)
+    reason_match = MSWEA_BASH_RE.search(reasoning)
+
+    msg_command = msg_match.group(1).strip() if msg_match else ""
+    reason_command = reason_match.group(1).strip() if reason_match else ""
+
+    if msg_command and reason_command and msg_command != reason_command:
+        # Fail closed rather than silently double-counting or choosing one.
+        return ""
+
+    return msg_command or reason_command
+
+
+def extract_behavior_actions(
+    trajectory: Any,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Return canonical observable task actions across agent scaffolds.
+
+    This behavioral view is intentionally distinct from historical raw_tool_calls.
+
+    Included:
+    - Claude/Fable structured task tools;
+    - Codex exec_command and non-empty write_stdin shell submissions;
+    - Mini-SWE fenced bash commands.
+
+    Excluded:
+    - empty write_stdin polling;
+    - planning-only tools such as update_plan;
+    - Mini-SWE completion sentinel commands.
+    """
+    actions: list[dict[str, Any]] = []
+
+    stats = Counter()
+    steps = agent_steps(trajectory)
+
+    for step_index, step in enumerate(steps):
+        step_calls = step.get("tool_calls")
+
+        if isinstance(step_calls, list) and step_calls:
+            observations = observation_by_call(step)
+
+            for call in step_calls:
+                if not isinstance(call, dict):
+                    continue
+
+                call_id = str(
+                    call.get("tool_call_id")
+                    or call.get("id")
+                    or ""
+                )
+                name = str(
+                    call.get("function_name")
+                    or call.get("name")
+                    or call.get("tool_use_name")
+                    or "unknown"
+                )
+                low_name = name.lower().replace("-", "_")
+                args = call_arguments(call)
+
+                if low_name == "update_plan":
+                    stats["excluded_planning_events"] += 1
+                    continue
+
+                if low_name in {
+                    "taskoutput",
+                    "task_output",
+                    "taskstop",
+                    "task_stop",
+                }:
+                    stats["excluded_task_orchestration_events"] += 1
+                    continue
+
+                if low_name == "agent":
+                    observation = observations.get(call_id, "")
+
+                    actions.append({
+                        "call_id": call_id,
+                        "name": name,
+                        "category": "delegate",
+                        "command": "",
+                        "path": "",
+                        "arguments_text": "\n".join(
+                            all_strings(args)
+                        ),
+                        "observation": observation,
+                        "failed": behavior_observation_failed(
+                            observation
+                        ),
+                        "action_origin": "subagent_delegation",
+                        "step_index": step_index,
+                    })
+                    stats["subagent_delegation_actions"] += 1
+                    continue
+
+                if low_name == "write_stdin":
+                    chars = args.get("chars")
+
+                    if not isinstance(chars, str) or not chars.strip():
+                        stats["excluded_empty_write_stdin"] += 1
+                        continue
+
+                    command = chars.strip()
+
+                    actions.append({
+                        "call_id": call_id,
+                        "name": name,
+                        "category": "bash",
+                        "command": command,
+                        "path": "",
+                        "arguments_text": "\n".join(all_strings(args)),
+                        "observation": observations.get(call_id, ""),
+                        "failed": behavior_observation_failed(
+                            observations.get(call_id, "")
+                        ),
+                        "action_origin": "codex_write_stdin",
+                        "step_index": step_index,
+                    })
+                    stats["codex_write_stdin_actions"] += 1
+                    continue
+
+                category = normalize_tool_name(name, args)
+
+                # Unknown provider metadata/tooling is not treated as a
+                # task-execution behavior.
+                if category == "other":
+                    stats["excluded_other_tool_events"] += 1
+                    continue
+
+                observation = observations.get(call_id, "")
+
+                actions.append({
+                    "call_id": call_id,
+                    "name": name,
+                    "category": category,
+                    "command": command_from_call(name, args),
+                    "path": path_from_call(args),
+                    "arguments_text": "\n".join(all_strings(args)),
+                    "observation": observation,
+                    "failed": behavior_observation_failed(observation),
+                    "action_origin": "structured_tool_call",
+                    "step_index": step_index,
+                })
+                stats["structured_actions"] += 1
+
+            continue
+
+        # Mini-SWE trajectories do not expose tool_calls. Their executed
+        # shell action is encoded in the agent message/reasoning block.
+        message = step.get("message")
+        reasoning = step.get("reasoning_content")
+
+        message = message if isinstance(message, str) else ""
+        reasoning = reasoning if isinstance(reasoning, str) else ""
+
+        has_miniswe_fence = bool(
+            MSWEA_BASH_RE.search(message)
+            or MSWEA_BASH_RE.search(reasoning)
+        )
+
+        command = mswea_command_from_step(step)
+
+        if not command:
+            if has_miniswe_fence:
+                stats["miniswe_unrecoverable_action_steps"] += 1
+            else:
+                stats["non_action_agent_turns"] += 1
+            continue
+
+        if command.strip() == MSWEA_COMPLETION_SENTINEL:
+            stats["excluded_completion_sentinel"] += 1
+            continue
+
+        observation = step_observation_text(step)
+
+        actions.append({
+            "call_id": "",
+            "name": "mswea_bash_command",
+            "category": "bash",
+            "command": command,
+            "path": "",
+            "arguments_text": command,
+            "observation": observation,
+            "failed": behavior_observation_failed(observation),
+            "action_origin": "miniswe_message_command",
+            "step_index": step_index,
+        })
+        stats["miniswe_actions"] += 1
+
+    origins = Counter(
+        action["action_origin"]
+        for action in actions
+    )
+
+    metrics = {
+        "behavioral_action_calls": len(actions),
+        "behavioral_failed_actions": sum(
+            int(action["failed"])
+            for action in actions
+        ),
+        "behavioral_successful_observed_actions": sum(
+            int(
+                bool(action["observation"])
+                and not action["failed"]
+            )
+            for action in actions
+        ),
+        "behavior_structured_actions": origins.get(
+            "structured_tool_call", 0
+        ),
+        "behavior_codex_write_stdin_actions": origins.get(
+            "codex_write_stdin", 0
+        ),
+        "behavior_miniswe_actions": origins.get(
+            "miniswe_message_command", 0
+        ),
+        **{
+            f"behavior_{key}": int(value)
+            for key, value in stats.items()
+        },
+    }
+
+    return actions, metrics
 
 
 def extract_tools(trajectory: Any) -> tuple[list[dict[str, Any]], dict[str, Any]]:
