@@ -1,0 +1,40 @@
+{
+  "full_spec_version": "1.0",
+  "selection_status": "frozen_historical_semantic_universe",
+  "source_manifest_sha256": "5cb8b1f9e4cc3b5b63d8b460de6f106198902b0002e83a4d49d2d7d6b1927092",
+  "bulk_index_version": "1.0",
+  "semantic_schema_version": "1.1",
+  "rubric_version": "1.0",
+  "semantic_view_version": "2.1",
+  "planned_trajectories": 2800,
+  "semantic_eligible_trajectories": 2776,
+  "censored_or_error": 24,
+  "primary_panel_size": 2,
+  "core_judge_jobs": 5552,
+  "expected_per_profile": {
+    "planned": 700,
+    "semantic_eligible": 694,
+    "censored_or_error": 6
+  },
+  "request_policy": {
+    "temperature": 0,
+    "response_format": {
+      "type": "json_object"
+    },
+    "max_tokens": 8192,
+    "timeout_seconds": 90,
+    "max_attempts_per_job": 3,
+    "retry_delays_seconds": [
+      0.0,
+      2.0,
+      5.0
+    ]
+  },
+  "cache_policy": {
+    "inherited_roots_are_read_only": true,
+    "terminal_missing_remains_missing": true,
+    "no_retry_beyond_frozen_budget": true,
+    "no_third_judge_tiebreak": true,
+    "new_artifacts_written_only_to_full_root": true
+  }
+}
