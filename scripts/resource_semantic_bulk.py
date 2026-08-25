@@ -18,7 +18,7 @@ from semantic_view import (
 )
 
 
-INDEX_VERSION = "resource-1.0"
+INDEX_VERSION = "resource-1.1"
 
 PRIMARY_PROFILES = (
     "claude",
@@ -165,7 +165,7 @@ def main() -> None:
 
     if (
         schema["schema_version"]
-        != "resource-1.0"
+        != "resource-1.1"
     ):
         raise ValueError(
             "unexpected resource "
@@ -174,7 +174,7 @@ def main() -> None:
 
     if (
         schema["rubric_version"]
-        != "resource-1.0"
+        != "resource-1.1"
     ):
         raise ValueError(
             "unexpected resource "
