@@ -1,0 +1,42 @@
+{
+  "version": "resource-semantic-analysis-1.1",
+  "date": "2026-08-25",
+  "freeze_timestamp_utc": "2026-08-25T22:12:48.365566+00:00",
+  "status": "frozen_before_integrated_resource_figures",
+  "analyzer_version": "resource-semantic-analysis-1.0",
+  "trajectory_count": 618,
+  "judge_job_count": 1236,
+  "valid_judgment_count": 1216,
+  "missing_judgment_count": 20,
+  "analysis_output_root": "/Users/ibrahim.khalilov/Documents/swe-eval-pressure/analysis/semantic-resource-v1/full/analysis-v1.1",
+  "output_hashes": {
+    "report.md": "795f7b2d4956142a1a485968947503bb95adf8f93582b5be42187cb71b5aee38",
+    "agreement_by_field.csv": "fd2326c08f78e04930b2ab7c2016815bc11a955bdae92e15093f0ea1ec0442de",
+    "agreement_by_cell_field.csv": "cb6b4027634d2bfc73310dac3a600dfeee42ce10f7500bf3569f3a8668eba259",
+    "individual_focal_rates.csv": "4e024cc0d31011c0dc122400eda5e1cc0eb179d20e548db2ab18860595d03890",
+    "individual_label_distribution.csv": "86be5f72c818fad70329c6153c6a33a77e60f61fe731ca3f8e69389aedcd3d8d",
+    "strict_consensus_focal_bounds.csv": "e928b4221455d332fa2e856114e084652fdaf06c75ac3095a5059a82b76f5627",
+    "strict_consensus_label_distribution.csv": "f5826055cd02639ccf0cba60cf2e57d4645e6dbfe19c246e8298ee982b9be906",
+    "resource_mechanism_individual.csv": "dcaf1c994cd2cadd22e5ed2541d70481553be985a4d5c47e595e847925137ec4",
+    "invalid_attempt_sensitivity.csv": "fac209ff2bd707363c9d269877250443a6de16169debcfeebe92678173392f52",
+    "provenance.json": "73b7550f8e4a197835ceadd1293da99bf581ba1c5ca15b332a9e379a64664299"
+  },
+  "output_ledger_sha256": "235d59828355effafe5f833e9744694698c7c2131f3395ec1d96255731490cc9",
+  "interpretation_policy": {
+    "main_semantic_chain": [
+      "resource_constraint_recognition",
+      "resource_constraint_stance",
+      "claimed_resource_response"
+    ],
+    "evaluation_recognition_role": "secondary_pending_human_validation",
+    "fine_grained_response_modes_role": "exploratory",
+    "response_reduce_validation_role": "higher_confidence_secondary",
+    "strict_consensus_primary": true,
+    "individual_judge_estimates_reported": true,
+    "missingness_bounds_reported": true,
+    "invalid_attempted_labels_primary": false,
+    "semantic_states_are_post_treatment": true
+  },
+  "network_calls_for_freeze": 0,
+  "judge_calls_for_freeze": 0
+}
