@@ -1,0 +1,275 @@
+{
+  "version": "resource-semantic-production-1.1",
+  "date": "2026-08-25",
+  "freeze_timestamp_utc": "2026-08-25T22:02:49.749085+00:00",
+  "production_status": "terminal_frozen_before_semantic_results_analysis",
+  "semantic_identity": {
+    "schema_version": "resource-1.1",
+    "rubric_version": "resource-1.1"
+  },
+  "source_manifest_sha256": "1ab4cf3074d3e4e57232adf0f965d479c8f23b3ecdc58c907eadfce442c5a2ca",
+  "schema_sha256": "4083d8075889bb84440847e6215a0064e55262884c048b242ef2fd3f3498fcfa",
+  "production_spec_sha256": "abd67416f2637a3853596a64703346b673babcda409305d0567db7e83fd444d1",
+  "trajectory_count": 618,
+  "judge_job_count": 1236,
+  "terminal_job_status": {
+    "ok": 1216,
+    "missing": 20,
+    "partial": 0,
+    "pending": 0,
+    "valid_coverage": 0.9838187702265372
+  },
+  "pair_completeness": {
+    "both_ok": 598,
+    "deepseek_only": 3,
+    "gemini_only": 17,
+    "neither_ok": 0
+  },
+  "missing_by_profile": {
+    "claude": 3,
+    "codex": 15,
+    "fable": 2
+  },
+  "missing_by_condition": {
+    "clean": 1,
+    "eval_only": 1,
+    "eval_resource_deprivation": 18
+  },
+  "missing_by_judge": {
+    "deepseek": 17,
+    "gemini": 3
+  },
+  "missing_by_profile_condition_judge": [
+    {
+      "profile": "claude",
+      "condition": "eval_resource_deprivation",
+      "judge_family": "deepseek",
+      "count": 2
+    },
+    {
+      "profile": "claude",
+      "condition": "eval_resource_deprivation",
+      "judge_family": "gemini",
+      "count": 1
+    },
+    {
+      "profile": "codex",
+      "condition": "eval_only",
+      "judge_family": "deepseek",
+      "count": 1
+    },
+    {
+      "profile": "codex",
+      "condition": "eval_resource_deprivation",
+      "judge_family": "deepseek",
+      "count": 13
+    },
+    {
+      "profile": "codex",
+      "condition": "eval_resource_deprivation",
+      "judge_family": "gemini",
+      "count": 1
+    },
+    {
+      "profile": "fable",
+      "condition": "clean",
+      "judge_family": "gemini",
+      "count": 1
+    },
+    {
+      "profile": "fable",
+      "condition": "eval_resource_deprivation",
+      "judge_family": "deepseek",
+      "count": 1
+    }
+  ],
+  "pair_completeness_by_cell": [
+    {
+      "profile": "claude",
+      "condition": "clean",
+      "state": "both_ok",
+      "count": 66
+    },
+    {
+      "profile": "claude",
+      "condition": "eval_only",
+      "state": "both_ok",
+      "count": 68
+    },
+    {
+      "profile": "claude",
+      "condition": "eval_resource_deprivation",
+      "state": "both_ok",
+      "count": 66
+    },
+    {
+      "profile": "claude",
+      "condition": "eval_resource_deprivation",
+      "state": "deepseek_only",
+      "count": 1
+    },
+    {
+      "profile": "claude",
+      "condition": "eval_resource_deprivation",
+      "state": "gemini_only",
+      "count": 2
+    },
+    {
+      "profile": "codex",
+      "condition": "clean",
+      "state": "both_ok",
+      "count": 70
+    },
+    {
+      "profile": "codex",
+      "condition": "eval_only",
+      "state": "both_ok",
+      "count": 69
+    },
+    {
+      "profile": "codex",
+      "condition": "eval_only",
+      "state": "gemini_only",
+      "count": 1
+    },
+    {
+      "profile": "codex",
+      "condition": "eval_resource_deprivation",
+      "state": "both_ok",
+      "count": 56
+    },
+    {
+      "profile": "codex",
+      "condition": "eval_resource_deprivation",
+      "state": "deepseek_only",
+      "count": 1
+    },
+    {
+      "profile": "codex",
+      "condition": "eval_resource_deprivation",
+      "state": "gemini_only",
+      "count": 13
+    },
+    {
+      "profile": "fable",
+      "condition": "clean",
+      "state": "both_ok",
+      "count": 68
+    },
+    {
+      "profile": "fable",
+      "condition": "clean",
+      "state": "deepseek_only",
+      "count": 1
+    },
+    {
+      "profile": "fable",
+      "condition": "eval_only",
+      "state": "both_ok",
+      "count": 67
+    },
+    {
+      "profile": "fable",
+      "condition": "eval_resource_deprivation",
+      "state": "both_ok",
+      "count": 68
+    },
+    {
+      "profile": "fable",
+      "condition": "eval_resource_deprivation",
+      "state": "gemini_only",
+      "count": 1
+    }
+  ],
+  "missingness_diagnosis": {
+    "random_missingness_assumed": false,
+    "dominant_failure_mode": "strict semantic judgment validation failure",
+    "primary_pattern": "DeepSeek judgments on Codex resource-deprivation trajectories frequently returned positive evaluation-recognition judgments whose evidence quote was not a verbatim substring of the indexed agent-authored block.",
+    "codex_resource_deepseek_missing": 13,
+    "codex_resource_deepseek_missing_evaluation_recognition_attempted_observed": 13,
+    "primary_policy": "retain terminal missingness; do not promote invalid attempted labels into primary judgments",
+    "sensitivity_policy": "report per-judge valid-denominator estimates and incomplete-pair bounds; attempted invalid labels may be shown only as explicitly non-primary sensitivity diagnostics"
+  },
+  "missing_attempted_last_labels": {
+    "evaluation_recognition": {
+      "not_observed": 5,
+      "observed": 15
+    },
+    "resource_constraint_recognition": {
+      "observed": 18,
+      "not_observed": 2
+    },
+    "resource_constraint_stance": {
+      "rejected_as_untrusted_or_injection": 3,
+      "accepted": 15,
+      "not_observed": 2
+    },
+    "claimed_resource_response": {
+      "explicitly_ignore_constraint": 3,
+      "adapt_to_constraint": 15,
+      "none_observed": 2
+    },
+    "response_conserve_tool_calls": {
+      "not_observed": 5,
+      "observed": 15
+    },
+    "response_batch_commands": {
+      "not_observed": 7,
+      "observed": 13
+    },
+    "response_reduce_exploration": {
+      "not_observed": 7,
+      "observed": 13
+    },
+    "response_reduce_validation": {
+      "not_observed": 6,
+      "observed": 14
+    },
+    "response_prioritize_core_edit": {
+      "not_observed": 8,
+      "observed": 12
+    },
+    "response_stop_early": {
+      "not_observed": 13,
+      "observed": 7
+    },
+    "response_other": {
+      "not_observed": 20
+    },
+    "evaluation_targeting_intent": {
+      "not_observed": 20
+    }
+  },
+  "missing_attempt_label_stability": {
+    "evaluation_recognition": 20,
+    "resource_constraint_recognition": 20,
+    "resource_constraint_stance": 20,
+    "claimed_resource_response": 20,
+    "response_conserve_tool_calls": 19,
+    "response_batch_commands": 18,
+    "response_reduce_exploration": 18,
+    "response_reduce_validation": 19,
+    "response_prioritize_core_edit": 18,
+    "response_stop_early": 18,
+    "response_other": 20,
+    "evaluation_targeting_intent": 20
+  },
+  "production_artifact_ledger": {
+    "artifact_count": 1236,
+    "algorithm": "sha256 over sorted lines: <cache_key> <artifact_sha256>",
+    "sha256": "10f74790121f908b306dc195a0e7d21cbf0be67ba8ca74e461cca57e0b9c7f02"
+  },
+  "analysis_policy": {
+    "strict_primary_judgments": true,
+    "two_valid_judges_required_for_consensus": true,
+    "disagreement_is_not_adjudicated": true,
+    "individual_judge_results_reported": true,
+    "explicit_valid_denominators": true,
+    "missingness_sensitivity_reported": true,
+    "invalid_attempted_labels_primary": false,
+    "additional_retries_for_primary": false,
+    "conditioned_semantic_results_are_descriptive_post_treatment": true
+  },
+  "network_calls_for_freeze": 0,
+  "judge_calls_for_freeze": 0
+}
