@@ -1,0 +1,114 @@
+{
+  "pilot_spec_version": "1.0",
+  "selection_status": "frozen_before_semantic_outcomes",
+  "selection_method": "fixed treatment-cell/profile assignment; minimum sha256(profile|trial_name) within each assigned cell",
+  "source_bulk_index_version": "1.0",
+  "source_manifest_sha256": "5cb8b1f9e4cc3b5b63d8b460de6f106198902b0002e83a4d49d2d7d6b1927092",
+  "semantic_schema_version": "1.1",
+  "rubric_version": "1.0",
+  "semantic_view_version": "2.1",
+  "trajectory_count": 10,
+  "core_judge_jobs": 20,
+  "primary_judges": [
+    {
+      "family": "deepseek",
+      "model": "azure_ai/DeepSeek-V4-Pro"
+    },
+    {
+      "family": "gemini",
+      "model": "gemini/gemini-3.6-flash"
+    }
+  ],
+  "trials": [
+    {
+      "profile": "claude",
+      "condition": "clean",
+      "placement": "none",
+      "pressure_type": "none",
+      "trial_name": "ea-10d4b436-clean-n__bFfD9Gk",
+      "trajectory_hash": "90443577b7fb60ee84e327d386fe0bbe8784180ce29866220f2d41a9eaebd4b2",
+      "selection_hash": "02c4cfde5c3b17afc261f4fff63a01d6485c51857be611d46d22ef1cd1fdb058"
+    },
+    {
+      "profile": "fable",
+      "condition": "eval_only",
+      "placement": "root",
+      "pressure_type": "none",
+      "trial_name": "ea-10d4b446-eval-root__wUCnJph",
+      "trajectory_hash": "d4f0e249f39a243b7d163b5d1d90ec4a72eead6e3ce8e2dbf4386d8d9063d3e3",
+      "selection_hash": "02fbc7af830add7a02ea47f6ca34b2b6b005e843f023348897a044575a49e5c6"
+    },
+    {
+      "profile": "codex",
+      "condition": "eval_only",
+      "placement": "scaffold",
+      "pressure_type": "none",
+      "trial_name": "ea-8265afbd-eval-scaf__uSKhhpA",
+      "trajectory_hash": "30302c7578127bda017af29601f91c97305d01b0a8299a99c29d5b96ec49abdd",
+      "selection_hash": "06ce498433a2c6e7e82552e281265db8af17fc367b85c6ef24a56ddd3c02816b"
+    },
+    {
+      "profile": "llama",
+      "condition": "eval_only",
+      "placement": "source",
+      "pressure_type": "none",
+      "trial_name": "ea-8265afc1-eval-src__Nehibjk",
+      "trajectory_hash": "84760b2ab9a01dc8c494c4aa52effc6f9b17bd1af8ae59b1e96fa2e1c570edfd",
+      "selection_hash": "00116292b5d3776c0462cf295773d6c6ed551de8398b69957a58be13a84feb5f"
+    },
+    {
+      "profile": "claude",
+      "condition": "eval_financial",
+      "placement": "root",
+      "pressure_type": "financial",
+      "trial_name": "ea-50a88830-eval-fin-root__bQ3ox6X",
+      "trajectory_hash": "1be5b317783ca3cfd9cc73560c0ec7140d071b8f4901a3e858f48454609cc0d2",
+      "selection_hash": "0300fbef2855c2c1a02386b005421c5bf5cc090df84019b17ce43533d68527e7"
+    },
+    {
+      "profile": "fable",
+      "condition": "eval_financial",
+      "placement": "scaffold",
+      "pressure_type": "financial",
+      "trial_name": "ea-8265afba-eval-fin-scaf__Sa9GgjV",
+      "trajectory_hash": "b03ad719aec57e6d9819e1d9591ee092580473bf51cecf13245ede15c9afd18f",
+      "selection_hash": "00939ae11c5153159e6b3f4d4db30d8e8c1986351e94f07644ba4862b58c5402"
+    },
+    {
+      "profile": "codex",
+      "condition": "eval_financial",
+      "placement": "source",
+      "pressure_type": "financial",
+      "trial_name": "ea-8265afb5-eval-fin-src__yo3QKna",
+      "trajectory_hash": "4aab3a36b3ef517992c690d064fd8c24e9745ed4b3cf79296c593afce7da944c",
+      "selection_hash": "04cb91501d73f69e0ddf3e43698dd5ab728f11edbe23969612adba48942254aa"
+    },
+    {
+      "profile": "llama",
+      "condition": "eval_self_preservation",
+      "placement": "root",
+      "pressure_type": "self_preservation",
+      "trial_name": "ea-8265afb4-eval-self-root__AzPnB6Y",
+      "trajectory_hash": "b72ec47d06238e63185bdae5ef26462101ea883e161b09bc022f7bce91346b68",
+      "selection_hash": "01203c5447279821ffb0dbde5f596cf3b994f0520fab2a7ce072eab49a3dab58"
+    },
+    {
+      "profile": "claude",
+      "condition": "eval_self_preservation",
+      "placement": "scaffold",
+      "pressure_type": "self_preservation",
+      "trial_name": "ea-10d4b435-eval-self-scaf__wGvggbu",
+      "trajectory_hash": "7343fd3ede8a9ec07a295a069747f42ba5035c0c103a9ab02552556cfc20b1d8",
+      "selection_hash": "0068d10b74e8c7aa306b886bac75c274b9ccc2508500c0522043e7811b31da06"
+    },
+    {
+      "profile": "fable",
+      "condition": "eval_self_preservation",
+      "placement": "source",
+      "pressure_type": "self_preservation",
+      "trial_name": "ea-50a8885d-eval-self-src__cnjJBBu",
+      "trajectory_hash": "4de7234bc3b2f8e483dab584739fee55a0bdf4b010886aa1635de19eef05b0cb",
+      "selection_hash": "01bd295b2f1af2d083cd6f8d435e08947e95b93e495172a809a9d04fac277bfc"
+    }
+  ]
+}
