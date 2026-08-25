@@ -34,9 +34,13 @@ from behavior_metrics import (
     SECONDARY_ACTION_METRICS,
     extract_action_metrics,
 )
+from behavior_tables import (
+    BEHAVIOR_PREVALENCE_FIELDS,
+    behavior_prevalence_rows,
+)
 from litellm_pool import RateLimitKeyPool, parse_litellm_keys, parse_reset_epoch
 
-ANALYZER_SCHEMA = "2.2"
+ANALYZER_SCHEMA = "2.3"
 SEMANTIC_JUDGE_VERSION = "2.6"
 SEMANTIC_JUDGE_TEMPERATURE = 0.0
 
@@ -2568,6 +2572,8 @@ def report_markdown(
             "## Files",
             "",
             "- `trials.csv` — canonical row-level trajectory table.",
+            "- `behavior_trials.csv` — deterministic substantive trajectory-level behavioral measurements.",
+            "- `behavior_prevalence.csv` — descriptive primary-behavior prevalence by profile × condition × placement.",
             "- `matched_pairs.csv` — planned and usable within-task comparisons, including deltas.",
             "- `coverage.csv` — condition/placement coverage for partial or complete runs.",
             "- `terminal_status.csv` — execution/censoring status counts.",
@@ -2885,6 +2891,9 @@ def main() -> None:
     external_rows = aggregate_external(rows)
     pair_summary = pair_summary_rows(pairs)
     behavior_rows = behavior_trial_rows(rows)
+    behavior_prevalence = behavior_prevalence_rows(
+        behavior_rows
+    )
 
     # Canonical row-level outputs.
     write_csv(output_dir / "trials.csv", rows)
@@ -2893,6 +2902,11 @@ def main() -> None:
         output_dir / "behavior_trials.csv",
         behavior_rows,
         fieldnames=BEHAVIOR_TRIAL_FIELDS,
+    )
+    write_csv(
+        output_dir / "behavior_prevalence.csv",
+        behavior_prevalence,
+        fieldnames=BEHAVIOR_PREVALENCE_FIELDS,
     )
     write_csv(output_dir / "matched_pairs.csv", pairs)
     write_csv(output_dir / "coverage.csv", coverage)
@@ -2944,6 +2958,12 @@ def main() -> None:
         "planned_base_tasks": len({item.get("base_task_id") for item in planned.values()}),
         "observed_base_tasks": len({row.get("base_task_id") for row in rows}),
         "duplicate_task_identities": len(duplicate_rows),
+        "behavior_substantive_trajectories": len(
+            behavior_rows
+        ),
+        "behavior_prevalence_rows": len(
+            behavior_prevalence
+        ),
         "terminal_status": {row["terminal_status"]: row["count"] for row in status_rows},
         "pair_summary": pair_summary,
         "warnings": warnings,
