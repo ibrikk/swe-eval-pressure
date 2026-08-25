@@ -182,3 +182,34 @@ def test_html_uses_conservative_integrity_and_analysis_plan_language():
     assert "frozen primary behavioral analysis family" in normalized
     assert "frozen exploratory behavioral/process analysis family" in normalized
     assert "pre-specified Holm" not in normalized
+
+
+def test_scrollable_tables_have_sticky_headers():
+    document = renderer.build_html(
+        inventory=[{
+            "profile": "claude",
+            "analysis_mode": "full",
+            "analysis_schema_version": "2.6",
+            "study_signatures": "historical",
+        }],
+        primary=[primary_row()],
+        secondary=[],
+        multiplicity=[],
+        pairs=[pair()],
+        title="Behavior Report",
+    )
+
+    normalized = " ".join(document.split())
+
+    assert ".table-scroll {" in document
+    assert "max-height: 72vh;" in document
+    assert "overflow: auto;" in document
+
+    assert "position: sticky;" in document
+    assert "top: 0;" in document
+
+    assert ".matrix thead th:first-child {" in document
+    assert "left: 0;" in document
+    assert "z-index: 4;" in document
+
+    assert 'class="table-scroll"' in normalized

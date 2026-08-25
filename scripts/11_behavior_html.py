@@ -761,7 +761,8 @@ th {{
 }}
 .table-scroll {{
   width: 100%;
-  overflow-x: auto;
+  max-height: 72vh;
+  overflow: auto;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--panel);
@@ -778,9 +779,13 @@ th {{
 .sticky-col {{
   position: sticky;
   left: 0;
-  z-index: 1;
+  z-index: 2;
   background: #fff;
   min-width: 170px;
+}}
+.matrix thead th:first-child {{
+  left: 0;
+  z-index: 4;
 }}
 .delta {{
   font-size: 18px;
