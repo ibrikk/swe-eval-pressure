@@ -20,6 +20,7 @@ import json
 import os
 import tempfile
 from collections import Counter
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
 
@@ -106,6 +107,72 @@ def atomic_write_json(
             pass
 
         raise
+
+
+def new_run_id() -> str:
+    return (
+        datetime.now(
+            timezone.utc
+        )
+        .strftime(
+            "%Y%m%dT%H%M%S%fZ"
+        )
+    )
+
+
+def write_run_summary(
+    *,
+    output_dir: Path,
+    summary: dict[str, Any],
+    run_id: str | None = None,
+) -> Path:
+    if run_id is None:
+        run_id = new_run_id()
+
+    if not run_id:
+        raise ValueError(
+            "run_id cannot be empty"
+        )
+
+    value = dict(summary)
+
+    value["run_id"] = run_id
+
+    history_path = (
+        output_dir
+        / "runs"
+        / f"run-{run_id}.json"
+    )
+
+    if history_path.exists():
+        raise FileExistsError(
+            "run history artifact "
+            "already exists: "
+            f"{history_path}"
+        )
+
+    value[
+        "run_record_path"
+    ] = str(
+        history_path
+    )
+
+    # Immutable per-execution record.
+    atomic_write_json(
+        history_path,
+        value,
+    )
+
+    # Convenience pointer to the most recent
+    # completed execution. This may change,
+    # but run history above is append-only.
+    atomic_write_json(
+        output_dir
+        / "run_summary.json",
+        value,
+    )
+
+    return history_path
 
 
 def trial_signature(
@@ -1326,10 +1393,11 @@ def main() -> None:
         ),
     }
 
-    atomic_write_json(
-        output_dir
-        / "run_summary.json",
-        summary,
+    run_record = (
+        write_run_summary(
+            output_dir=output_dir,
+            summary=summary,
+        )
     )
 
     print()
@@ -1354,7 +1422,11 @@ def main() -> None:
         ),
     )
     print(
-        "summary:",
+        "run record:",
+        run_record,
+    )
+    print(
+        "latest summary:",
         output_dir
         / "run_summary.json",
     )

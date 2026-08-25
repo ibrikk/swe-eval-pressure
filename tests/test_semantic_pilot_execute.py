@@ -285,3 +285,68 @@ def test_mock(tmp_path):
             journal_text
         )
     )
+
+
+def test_run_history(tmp_path):
+    first = exe.write_run_summary(
+        output_dir=tmp_path,
+        summary={
+            "new_jobs": 20,
+            "provider_attempts": 21,
+        },
+        run_id="first",
+    )
+
+    second = exe.write_run_summary(
+        output_dir=tmp_path,
+        summary={
+            "new_jobs": 0,
+            "provider_attempts": 0,
+        },
+        run_id="second",
+    )
+
+    assert first.is_file()
+    assert second.is_file()
+
+    first_data = json.loads(
+        first.read_text()
+    )
+
+    second_data = json.loads(
+        second.read_text()
+    )
+
+    latest = json.loads(
+        (
+            tmp_path
+            / "run_summary.json"
+        ).read_text()
+    )
+
+    assert first_data[
+        "new_jobs"
+    ] == 20
+
+    assert first_data[
+        "provider_attempts"
+    ] == 21
+
+    assert second_data[
+        "new_jobs"
+    ] == 0
+
+    assert latest[
+        "run_id"
+    ] == "second"
+
+    assert len(
+        list(
+            (
+                tmp_path
+                / "runs"
+            ).glob(
+                "run-*.json"
+            )
+        )
+    ) == 2
