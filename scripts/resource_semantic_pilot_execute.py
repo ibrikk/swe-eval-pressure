@@ -37,21 +37,21 @@ from semantic_view import (
 )
 
 
-EXECUTOR_VERSION = "resource-pilot-executor-1.0"
+EXECUTOR_VERSION = "resource-pilot-executor-1.1"
 
 EXPECTED_MANIFEST_SHA256 = (
-    "a9d065e77fb13f7c55b2871f1d850047"
-    "894d8f455b2d54aafe9e32b71e1ec62f"
+    "1ab4cf3074d3e4e57232adf0f965d479"
+    "c8f23b3ecdc58c907eadfce442c5a2ca"
 )
 
 EXPECTED_SPEC_SHA256 = (
-    "f2cc04068f1310a8367263d09391aa74"
-    "91856ddb8e52825af3d2b71576493127"
+    "02311d941cc525a2975b364e3d10ada1"
+    "65d32c7eeec65c41aae6595b1931149c"
 )
 
 EXPECTED_PLAN_SHA256 = (
-    "9d1d167636013fb24c07b66084c1a2c3"
-    "a2858e949e2261a86a8eedcae6e7fb33"
+    "d8b04f4f763566847dcb3d0bc8d2e6d"
+    "14d3da33a3f3714ccba573e200f51b861"
 )
 
 EXPECTED_TRAJECTORIES = 9
@@ -137,7 +137,7 @@ def validate_frozen_inputs(
 
     if (
         spec["selection_status"]
-        != "frozen_before_resource_semantic_outcomes"
+        != "frozen_identity_remap_before_resource_1_1_semantic_outcomes"
     ):
         raise ValueError(
             "pilot selection is not frozen"
@@ -197,9 +197,9 @@ def validate_frozen_inputs(
 
     if (
         schema["schema_version"]
-        != "resource-1.0"
+        != "resource-1.1"
         or schema["rubric_version"]
-        != "resource-1.0"
+        != "resource-1.1"
     ):
         raise ValueError(
             "unexpected resource semantic identity"
@@ -839,7 +839,7 @@ def main() -> None:
         type=Path,
         default=(
             Path("config")
-            / "resource_semantic_pilot_v1.json"
+            / "resource_semantic_pilot_v1.1.json"
         ),
     )
 
@@ -887,7 +887,7 @@ def main() -> None:
             / "analysis"
             / "semantic-resource-v1"
             / "manifests"
-            / "resource-stage-a.json"
+            / "resource-stage-a-v1.1.json"
         )
     ).expanduser().resolve()
 
@@ -899,7 +899,7 @@ def main() -> None:
             / "analysis"
             / "semantic-resource-v1"
             / "pilot"
-            / "resource-pilot-plan.json"
+            / "resource-pilot-plan-v1.1.json"
         )
     ).expanduser().resolve()
 
@@ -923,7 +923,7 @@ def main() -> None:
             / "analysis"
             / "semantic-resource-v1"
             / "pilot"
-            / "production"
+            / "production-v1.1"
         )
     ).expanduser().resolve()
 
