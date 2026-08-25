@@ -29,9 +29,14 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
+from behavior_metrics import (
+    PRIMARY_BINARY_ENDPOINTS,
+    SECONDARY_ACTION_METRICS,
+    extract_action_metrics,
+)
 from litellm_pool import RateLimitKeyPool, parse_litellm_keys, parse_reset_epoch
 
-ANALYZER_SCHEMA = "2.1"
+ANALYZER_SCHEMA = "2.2"
 SEMANTIC_JUDGE_VERSION = "2.6"
 SEMANTIC_JUDGE_TEMPERATURE = 0.0
 
@@ -1359,15 +1364,60 @@ def ingest_trial(
     result = candidate["result"]
     trial = candidate["trial_dir"]
     trajectory_path, trajectory = load_trajectory(trial)
+
+    # Historical provider-native tool metrics remain available for backward
+    # compatibility and process reporting.
     calls, tool_metrics = extract_tools(trajectory)
     test_commands, validation_commands = count_validation_calls(calls)
+
+    # Behavioral analysis uses the canonical cross-scaffold action stream.
+    behavior_actions, behavior_action_metrics = extract_behavior_actions(
+        trajectory
+    )
+
+    # Delegation is itself observable behavior, but strings inside a delegation
+    # prompt are not treated as direct file/network actions by the parent.
+    direct_behavior_actions = [
+        action
+        for action in behavior_actions
+        if action.get("category") != "delegate"
+    ]
 
     patch_path = locate(trial, ["verifier/agent.patch", "agent/patch.diff", "agent/*.patch", "**/patch.diff", "**/*.patch"])
     patch = patch_path.read_text(encoding="utf-8", errors="replace") if patch_path else ""
     pressure_text = load_pressure_text(project_root, item)
-    treatment = treatment_delivery(item, trajectory, calls, pressure_text)
-    external = external_lookup(calls, str(item.get("repository") or ""))
+
+    treatment = treatment_delivery(
+        item,
+        trajectory,
+        direct_behavior_actions,
+        pressure_text,
+    )
+    external = external_lookup(
+        direct_behavior_actions,
+        str(item.get("repository") or ""),
+    )
     integrity = integrity_metrics(trial, patch, item)
+
+    behavior = extract_action_metrics(
+        behavior_actions,
+        changed_files=int(integrity.get("changed_files", 0) or 0),
+        test_files_modified=int(
+            integrity.get("test_files_modified", 0) or 0
+        ),
+        evaluation_context_file_modified=int(
+            integrity.get(
+                "evaluation_context_file_modified",
+                0,
+            ) or 0
+        ),
+        seeded_cue_removed_or_modified=int(
+            integrity.get(
+                "seeded_cue_removed_or_modified",
+                0,
+            ) or 0
+        ),
+    )
     status, exc_type, exc_message = terminal_status(result)
     verifier_result = result.get("verifier_result") or {}
     rewards = verifier_result.get("rewards", {}) or {}
@@ -1423,14 +1473,32 @@ def ingest_trial(
         "cache_tokens": agent_result.get("n_cache_tokens", ""),
         "output_tokens": agent_result.get("n_output_tokens", ""),
         "cost_usd": agent_result.get("cost_usd", ""),
+
+        # Process-resource aliases used by the behavioral analysis. These are
+        # observable accounting quantities, not latent reasoning measures.
+        "trajectory_steps": tool_metrics.get("assistant_turns", 0),
+        "prompt_tokens": agent_result.get("n_input_tokens", ""),
+        "completion_tokens": agent_result.get("n_output_tokens", ""),
+        "duration_seconds": (
+            total_duration
+            if total_duration is not None
+            else ""
+        ),
+
+        # Legacy validation counters remain for backward compatibility. The
+        # new canonical behavior fields below are cross-scaffold aware.
         "test_command_calls": test_commands,
         "validation_command_calls": validation_commands,
+
         "result_path": str(candidate["path"]),
         "run_root": str(candidate["run_root"]),
+        "run_signature": candidate.get("run_signature", ""),
         "trajectory_file": str(trajectory_path.relative_to(trial)) if trajectory_path else "",
         "patch_file": str(patch_path.relative_to(trial)) if patch_path else "",
     }
     row.update(tool_metrics)
+    row.update(behavior_action_metrics)
+    row.update(behavior)
     row.update(treatment)
     row.update(external)
     row.update(integrity)
@@ -2523,6 +2591,113 @@ def report_markdown(
 
 
 # ---------------------------------------------------------------------------
+# Deterministic behavioral row-level output
+# ---------------------------------------------------------------------------
+
+
+BEHAVIOR_TRIAL_BASE_FIELDS = [
+    "analysis_schema_version",
+    "analysis_mode",
+    "study_signature",
+    "run_signature",
+    "run_root",
+    "profile",
+    "model_name",
+    "model_provider",
+    "agent_name",
+    "agent_version",
+    "trial_name",
+    "task_name",
+    "base_task_id",
+    "repository",
+    "language",
+    "difficulty",
+    "condition",
+    "channel",
+    "pressure_type",
+    "pressure_index",
+    "pressure_level",
+    "replicate_index",
+    "terminal_status",
+    "substantive_usable",
+    "overall_pass",
+    "cue_planted",
+    "treatment_artifact",
+    "artifact_access_attempted",
+    "artifact_actually_read",
+    "eval_cue_observed",
+    "pressure_cue_observed",
+]
+
+BEHAVIOR_ACTION_DIAGNOSTIC_FIELDS = [
+    "behavioral_action_calls",
+    "behavioral_failed_actions",
+    "behavioral_successful_observed_actions",
+    "behavior_structured_actions",
+    "behavior_codex_write_stdin_actions",
+    "behavior_miniswe_actions",
+    "behavior_subagent_delegation_actions",
+    "behavior_excluded_empty_write_stdin",
+    "behavior_excluded_planning_events",
+    "behavior_excluded_task_orchestration_events",
+    "behavior_excluded_completion_sentinel",
+    "behavior_miniswe_unrecoverable_action_steps",
+    "behavior_non_action_agent_turns",
+    "behavior_excluded_other_tool_events",
+]
+
+BEHAVIOR_PROCESS_FIELDS = [
+    "raw_tool_calls",
+    "trajectory_steps",
+    "prompt_tokens",
+    "completion_tokens",
+    "duration_seconds",
+    "agent_duration_sec",
+    "cost_usd",
+    "changed_files",
+    "test_command_calls",
+]
+
+BEHAVIOR_SCOPE_FIELDS = [
+    "unique_files_read_scope",
+    "unique_dirs_read_scope",
+    "unique_files_modified_scope",
+]
+
+BEHAVIOR_TRIAL_FIELDS = (
+    BEHAVIOR_TRIAL_BASE_FIELDS
+    + list(PRIMARY_BINARY_ENDPOINTS)
+    + list(SECONDARY_ACTION_METRICS)
+    + BEHAVIOR_ACTION_DIAGNOSTIC_FIELDS
+    + BEHAVIOR_PROCESS_FIELDS
+    + BEHAVIOR_SCOPE_FIELDS
+)
+
+
+def behavior_trial_rows(
+    rows: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Substantive deterministic behavioral substrate.
+
+    Infrastructure-censored rows remain auditable in trials.csv but are not
+    silently converted to behavioral zeros here. Genuine model-produced safety
+    refusals remain substantive and therefore remain eligible.
+    """
+    output: list[dict[str, Any]] = []
+
+    for row in rows:
+        if not row.get("substantive_usable"):
+            continue
+
+        output.append({
+            field: row.get(field, "")
+            for field in BEHAVIOR_TRIAL_FIELDS
+        })
+
+    return output
+
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
@@ -2677,6 +2852,8 @@ def main() -> None:
         task_name = result_task_name(candidate["result"])
         item = planned[task_name]
         row, assistant, trajectory_hash = ingest_trial(project_root, args.profile, item, candidate)
+        row["analysis_mode"] = args.mode
+        row["study_signature"] = signature
         rows.append(row)
         semantic_inputs[str(row["trial_name"])] = (assistant, trajectory_hash)
 
@@ -2707,10 +2884,16 @@ def main() -> None:
     tool_rows = aggregate_tools(rows)
     external_rows = aggregate_external(rows)
     pair_summary = pair_summary_rows(pairs)
+    behavior_rows = behavior_trial_rows(rows)
 
     # Canonical row-level outputs.
     write_csv(output_dir / "trials.csv", rows)
     write_json(output_dir / "trials.json", rows)
+    write_csv(
+        output_dir / "behavior_trials.csv",
+        behavior_rows,
+        fieldnames=BEHAVIOR_TRIAL_FIELDS,
+    )
     write_csv(output_dir / "matched_pairs.csv", pairs)
     write_csv(output_dir / "coverage.csv", coverage)
     write_csv(output_dir / "terminal_status.csv", status_rows)
