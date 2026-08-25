@@ -1,0 +1,1108 @@
+{
+  "dose_spec_version": "1.0",
+  "selection_status": "frozen_before_dose_outcomes",
+  "selection_method": "10 trajectories per treatment cell; 25 trajectories per evaluated-agent profile; frozen semantic pilot included exactly; remaining candidates ordered by sha256(profile|condition|placement|trial_name)",
+  "source_bulk_index_version": "1.0",
+  "source_manifest_sha256": "5cb8b1f9e4cc3b5b63d8b460de6f106198902b0002e83a4d49d2d7d6b1927092",
+  "source_pilot_spec_version": "1.0",
+  "source_pilot_spec_sha256": "91a35201ca29a1b576cf0d66cf7684639a691fd694515bf1be8965346ad467ef",
+  "semantic_schema_version": "1.1",
+  "rubric_version": "1.0",
+  "semantic_view_version": "2.1",
+  "trajectory_count": 100,
+  "core_judge_jobs": 200,
+  "frozen_pilot_count": 10,
+  "new_trajectory_count": 90,
+  "primary_judges": [
+    {
+      "family": "deepseek",
+      "model": "azure_ai/DeepSeek-V4-Pro"
+    },
+    {
+      "family": "gemini",
+      "model": "gemini/gemini-3.6-flash"
+    }
+  ],
+  "profile_counts": {
+    "claude": 25,
+    "fable": 25,
+    "codex": 25,
+    "llama": 25
+  },
+  "cell_counts": {
+    "clean×none": 10,
+    "eval_financial×root": 10,
+    "eval_financial×scaffold": 10,
+    "eval_financial×source": 10,
+    "eval_only×root": 10,
+    "eval_only×scaffold": 10,
+    "eval_only×source": 10,
+    "eval_self_preservation×root": 10,
+    "eval_self_preservation×scaffold": 10,
+    "eval_self_preservation×source": 10
+  },
+  "allocation": {
+    "clean×none": {
+      "claude": 3,
+      "fable": 3,
+      "codex": 2,
+      "llama": 2
+    },
+    "eval_only×root": {
+      "claude": 3,
+      "fable": 2,
+      "codex": 3,
+      "llama": 2
+    },
+    "eval_only×scaffold": {
+      "claude": 3,
+      "fable": 2,
+      "codex": 2,
+      "llama": 3
+    },
+    "eval_only×source": {
+      "claude": 2,
+      "fable": 3,
+      "codex": 3,
+      "llama": 2
+    },
+    "eval_financial×root": {
+      "claude": 2,
+      "fable": 3,
+      "codex": 2,
+      "llama": 3
+    },
+    "eval_financial×scaffold": {
+      "claude": 2,
+      "fable": 2,
+      "codex": 3,
+      "llama": 3
+    },
+    "eval_financial×source": {
+      "claude": 3,
+      "fable": 3,
+      "codex": 2,
+      "llama": 2
+    },
+    "eval_self_preservation×root": {
+      "claude": 3,
+      "fable": 2,
+      "codex": 3,
+      "llama": 2
+    },
+    "eval_self_preservation×scaffold": {
+      "claude": 2,
+      "fable": 3,
+      "codex": 2,
+      "llama": 3
+    },
+    "eval_self_preservation×source": {
+      "claude": 2,
+      "fable": 2,
+      "codex": 3,
+      "llama": 3
+    }
+  },
+  "trials": [
+    {
+      "profile": "claude",
+      "condition": "clean",
+      "placement": "none",
+      "pressure_type": "none",
+      "trial_name": "ea-50a8882e-clean-n__ZoK6dXk",
+      "trajectory_hash": "361af0cd6bf1d81b1648eedff06bd6419255c8e09c8062831bd77b9d1bd208f5",
+      "dose_hash": "004d284f3a2e0ba41356f2d06ed75a112a51f743b6f9cd8ab728d71d5517a82b",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "claude",
+      "condition": "clean",
+      "placement": "none",
+      "pressure_type": "none",
+      "trial_name": "ea-8265afb9-clean-n__EtmTWta",
+      "trajectory_hash": "2be830da6f981912ae4bc8369d6906cc637bdda875dc566d0eaf723d7a4f7bea",
+      "dose_hash": "0d53d807aed13780d9fe36420b6d0d9beaa01a4bc6009f41c08f8a6203f4d9b2",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "claude",
+      "condition": "clean",
+      "placement": "none",
+      "pressure_type": "none",
+      "trial_name": "ea-10d4b436-clean-n__bFfD9Gk",
+      "trajectory_hash": "90443577b7fb60ee84e327d386fe0bbe8784180ce29866220f2d41a9eaebd4b2",
+      "dose_hash": "9f57a1da9441f509e1330612f998779dde9ecefb10aa43b667228f8770195b31",
+      "from_frozen_pilot": true
+    },
+    {
+      "profile": "fable",
+      "condition": "clean",
+      "placement": "none",
+      "pressure_type": "none",
+      "trial_name": "ea-7be1e533-clean-n__qZEo3TZ",
+      "trajectory_hash": "312202ef6718490dbb05850131b80a693c7611cf0cbc5bf1a4f91f17d1c664d7",
+      "dose_hash": "0ddd320260434c25989fedcf843c46a5f91ac67633953d139b46790f9019e06c",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "fable",
+      "condition": "clean",
+      "placement": "none",
+      "pressure_type": "none",
+      "trial_name": "ea-50a88844-clean-n__De5MJ7u",
+      "trajectory_hash": "b3ef68ba7ed3d7cbba1c922b6e58e33e065bda676ea8496b9fabf4cd9d70fb35",
+      "dose_hash": "0efbb14ba2d8504e46cc60d343bf1984965cf1817a8de12db78ab4109e729406",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "fable",
+      "condition": "clean",
+      "placement": "none",
+      "pressure_type": "none",
+      "trial_name": "ea-10d4b419-clean-n__V8TZXCp",
+      "trajectory_hash": "cf089f6e3f60c25e0dd0b9e72837c0d6d740e8f54d61e341a327b31dcae5681e",
+      "dose_hash": "15e3c3bef2dd36f44ac51812343273231ec4d71c8b5ab6aee6d1d188ac485d15",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "codex",
+      "condition": "clean",
+      "placement": "none",
+      "pressure_type": "none",
+      "trial_name": "ea-50a88841-clean-n__fZtME3C",
+      "trajectory_hash": "e4de22322c3e4e7a3656528f0ff51ac6bc2c42b15ab5a0e5c18b28a3439bf883",
+      "dose_hash": "04f5cde9127755d9de61fb10e2c7167f831eca709f2d39c0545f82d46d15c50d",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "codex",
+      "condition": "clean",
+      "placement": "none",
+      "pressure_type": "none",
+      "trial_name": "ea-8265afc1-clean-n__TTBMqmA",
+      "trajectory_hash": "87c0df57cf7bb4b4b5d575aa8bf7cd244175fd39728fcadbcab249945cd4ca64",
+      "dose_hash": "059106620d79efad0b096b65622721b45edc054fbe66cf17c0e5c3c77769a264",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "llama",
+      "condition": "clean",
+      "placement": "none",
+      "pressure_type": "none",
+      "trial_name": "ea-10d4b445-clean-n__AmQ9Ek3",
+      "trajectory_hash": "4b9087e028d83a4cdb31438b71a7f2b4bb7664891ff97d2c37e822aedf7d5a2e",
+      "dose_hash": "006202cc97e870b8a418a9c4b399fef93ed82f625d47bb95b3f0f0cd4827ba2a",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "llama",
+      "condition": "clean",
+      "placement": "none",
+      "pressure_type": "none",
+      "trial_name": "ea-8265afb8-clean-n__4KxFdbN",
+      "trajectory_hash": "4319fc3ff15eb7f0c25af88fdc14e5c4178cf8870ada75757153a9a7c3ab5364",
+      "dose_hash": "0828b9ee349b3658b551923df29c73f593c6a1a6ad5c4645e2d0e4364e0ab79b",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "claude",
+      "condition": "eval_only",
+      "placement": "root",
+      "pressure_type": "none",
+      "trial_name": "ea-8265afc2-eval-root__xVAf2xx",
+      "trajectory_hash": "2982e079425a0030b5f18ed7ae396e2cbb8edd9e706fc6020b2a69c8a901f032",
+      "dose_hash": "030ae3b4869b469db86694b94dba8d4a544d9e1c2b2fec1e2e4612ff11feba1e",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "claude",
+      "condition": "eval_only",
+      "placement": "root",
+      "pressure_type": "none",
+      "trial_name": "ea-8265afc4-eval-root__sUvujxy",
+      "trajectory_hash": "10c7a8b4d8e5c46b4f42ee61a4b27add16cf6bc9c76c8c3b8a616296f4c93103",
+      "dose_hash": "03c9cbae36da13ca4aae5875d11845633bb3da21cd125697e19ad4d4afd53482",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "claude",
+      "condition": "eval_only",
+      "placement": "root",
+      "pressure_type": "none",
+      "trial_name": "ea-10d4b455-eval-root__DmSKKbt",
+      "trajectory_hash": "d6cb7b40c9bc3ac2eea5918c58bf9d07fff920c5aec2a55732ae520d86e1e86d",
+      "dose_hash": "0a22a616d1ebade40a3f82e9c11833e91e189d5a46c88c3593059670d8c2d1e3",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "fable",
+      "condition": "eval_only",
+      "placement": "root",
+      "pressure_type": "none",
+      "trial_name": "ea-10d4b419-eval-root__xGH2PRG",
+      "trajectory_hash": "b48ad6fb3ab0219c088d487fa3dff0d19c02af45995b6ead16bd314ea30bb97e",
+      "dose_hash": "019b8bf71f7e70b999b57eed3324b44142b3a9c0e1f6b27cb90daf1dd885a01b",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "fable",
+      "condition": "eval_only",
+      "placement": "root",
+      "pressure_type": "none",
+      "trial_name": "ea-10d4b446-eval-root__wUCnJph",
+      "trajectory_hash": "d4f0e249f39a243b7d163b5d1d90ec4a72eead6e3ce8e2dbf4386d8d9063d3e3",
+      "dose_hash": "bdfd795c3219949bdcf2bbe4f1c00824441dc9a9fe9998ce4aecf82d13a9befb",
+      "from_frozen_pilot": true
+    },
+    {
+      "profile": "codex",
+      "condition": "eval_only",
+      "placement": "root",
+      "pressure_type": "none",
+      "trial_name": "ea-10d4b459-eval-root__zCAFqNg",
+      "trajectory_hash": "0d3919d224742d769e41812d2b7b7fd1adb8ecc6f4ff4a109668222e69b9978f",
+      "dose_hash": "014e2f09d345f2de903e842af5383e2d385340abb9a1281f8e5e2271792ca30b",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "codex",
+      "condition": "eval_only",
+      "placement": "root",
+      "pressure_type": "none",
+      "trial_name": "ea-50a88841-eval-root__bSJ9nXV",
+      "trajectory_hash": "6021716a2503fcd1ae1293ffef2276b95513a6b5ac7064e917bf07af2ba58ff6",
+      "dose_hash": "01723292467a7448b82e475f48910a2e7ea450a061a78a7197b31c3da3a5b89e",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "codex",
+      "condition": "eval_only",
+      "placement": "root",
+      "pressure_type": "none",
+      "trial_name": "ea-8265afb6-eval-root__7263rFB",
+      "trajectory_hash": "e0b5a91f19585e74a2fa0bd700aba9a19f694989df93129cef67bfb14c974480",
+      "dose_hash": "0e6aea877cc2cf8111e3650779752b6f66e490501b82fec346db8d5678032c02",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "llama",
+      "condition": "eval_only",
+      "placement": "root",
+      "pressure_type": "none",
+      "trial_name": "ea-50a88838-eval-root__whyF9Z2",
+      "trajectory_hash": "4520d6c9ff58f2ea42b074f16a30ef937be634f67d12da8d994801fcabc0cec0",
+      "dose_hash": "02b482da9486d2a761f3d381138917c2210019d2880a2fb1cabca132a141c3d2",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "llama",
+      "condition": "eval_only",
+      "placement": "root",
+      "pressure_type": "none",
+      "trial_name": "ea-10d4b455-eval-root__Yzc3SEi",
+      "trajectory_hash": "753625d4aa0dd6c6162352b4335fef7ac1b87651c41a16361dccde11a5b63128",
+      "dose_hash": "03d4749980909fcbd125f8d5e2d55c753c755c4de1e7212f083413994af70f22",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "claude",
+      "condition": "eval_only",
+      "placement": "scaffold",
+      "pressure_type": "none",
+      "trial_name": "ea-10d4b45b-eval-scaf__Av6onR7",
+      "trajectory_hash": "568a3daf93624b3866c5e782262d2dbb0467766af7531885eb11ae78901c8c2d",
+      "dose_hash": "030327e7b8032c86d8433f43ba1a956b660f88da7cdecc8859f2e308e857a57a",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "claude",
+      "condition": "eval_only",
+      "placement": "scaffold",
+      "pressure_type": "none",
+      "trial_name": "ea-8265afb6-eval-scaf__PWgQmpT",
+      "trajectory_hash": "fb120d65d06ac61e0d6af804dd7bd06f0da8cff5ebc3cc0ea5b8a58b50085653",
+      "dose_hash": "0a10693ed50a7f2a26408b943e6bc8b18d73edfc7f7a3daf37655d76695e4782",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "claude",
+      "condition": "eval_only",
+      "placement": "scaffold",
+      "pressure_type": "none",
+      "trial_name": "ea-10d4b44b-eval-scaf__DqqE2Rs",
+      "trajectory_hash": "c9e3e96868f843994a5a0b921ca122bba5e51a4810ec8415560f145256a48fd5",
+      "dose_hash": "0f53843e3fb02e615a59f7d845ff2bd5b5de111e0ad6d3d1155e624aa527220e",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "fable",
+      "condition": "eval_only",
+      "placement": "scaffold",
+      "pressure_type": "none",
+      "trial_name": "ea-10d4b446-eval-scaf__rzUPMpY",
+      "trajectory_hash": "d12280f23e300a6144f5e03d5b85a292f425bcd7211856be12011e29c494b2b5",
+      "dose_hash": "0130e6edd555031e69fafda90a9972439c2815c87a24beac4213421f191eca71",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "fable",
+      "condition": "eval_only",
+      "placement": "scaffold",
+      "pressure_type": "none",
+      "trial_name": "ea-7be1e531-eval-scaf__AtRxCY4",
+      "trajectory_hash": "c46c1ba2c76ea2f25d041b9004ecc53392c992d45bb65320dc47dc12537b4285",
+      "dose_hash": "0650fd3f3aab9238b0c9bfe932119af87257bf0ae7b45bd5faa0ab54e2a60d5e",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "codex",
+      "condition": "eval_only",
+      "placement": "scaffold",
+      "pressure_type": "none",
+      "trial_name": "ea-10d4b436-eval-scaf__tGLcbQF",
+      "trajectory_hash": "f167b38dd2b479be38dc32d4066a7abd1b711db297ea945f7a56383540e6a2dc",
+      "dose_hash": "050dfc5e139c440a33d524225298d67df072f2e2f737152df4853d58de44ec76",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "codex",
+      "condition": "eval_only",
+      "placement": "scaffold",
+      "pressure_type": "none",
+      "trial_name": "ea-8265afbd-eval-scaf__uSKhhpA",
+      "trajectory_hash": "30302c7578127bda017af29601f91c97305d01b0a8299a99c29d5b96ec49abdd",
+      "dose_hash": "9ccbc5b71a9902046e3653b0dcc8d84cdbec1da4a826471450902493d202c3f4",
+      "from_frozen_pilot": true
+    },
+    {
+      "profile": "llama",
+      "condition": "eval_only",
+      "placement": "scaffold",
+      "pressure_type": "none",
+      "trial_name": "ea-10d4b434-eval-scaf__69eTEbg",
+      "trajectory_hash": "7a3e4cb7ba90a2b4e1fd07ae743daa94d001ebdd613070801fb767f4c5da7d53",
+      "dose_hash": "05f8bc2d8a9fcce55ba85d1fdf39d8c2be04fa524ba00f7bd13bff0c8f480022",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "llama",
+      "condition": "eval_only",
+      "placement": "scaffold",
+      "pressure_type": "none",
+      "trial_name": "ea-4fd11891-eval-scaf__Ma2W9AC",
+      "trajectory_hash": "9deb0d51f9b3668ed1d4187c08d29e97c64ed8b3e8751b1260cbf1b936fb28db",
+      "dose_hash": "06962ede9d9516da42dc740c69b787b952346c7bb88619cc0a50007a68fe9782",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "llama",
+      "condition": "eval_only",
+      "placement": "scaffold",
+      "pressure_type": "none",
+      "trial_name": "ea-8265afbb-eval-scaf__3GtLV64",
+      "trajectory_hash": "dc466a4634d75f9e4b7ec90c26d7ee4d3b6f129200bbe0f4e373012b6ea3f771",
+      "dose_hash": "0a12c9879789257805e432946c3d331713db21b8a863f46224bdcafd1b88ecdf",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "claude",
+      "condition": "eval_only",
+      "placement": "source",
+      "pressure_type": "none",
+      "trial_name": "ea-ed98812f-eval-src__GSFw6rK",
+      "trajectory_hash": "44dcae84c7af95fa0c32e0d1aec21a8a602a0f9b776c55a7403b568d9925a6a0",
+      "dose_hash": "0404a62cc00d682c40fb985094114a4e28909dda2b2b3b48be03302728062bb0",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "claude",
+      "condition": "eval_only",
+      "placement": "source",
+      "pressure_type": "none",
+      "trial_name": "ea-8265afb7-eval-src__RLhG4hE",
+      "trajectory_hash": "4e757901e708acf72f78b2e41e997f2a036ac351a745237184357a96c0b01001",
+      "dose_hash": "06ecd88910be37e3ae26ad296c14f6b7b831c520ba02ef902d6be3537b75f7a3",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "fable",
+      "condition": "eval_only",
+      "placement": "source",
+      "pressure_type": "none",
+      "trial_name": "ea-8265afb8-eval-src__pUs29p6",
+      "trajectory_hash": "d85f39042c72b79e5bfc899689bd00d4aa40e143a882e2bd5a634eedfcc6fecd",
+      "dose_hash": "0f304002c271894a8ef968247e5eb263fb91c0e5d6481746803cf17804cbcfc3",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "fable",
+      "condition": "eval_only",
+      "placement": "source",
+      "pressure_type": "none",
+      "trial_name": "ea-ed98812c-eval-src__Mhf85Nt",
+      "trajectory_hash": "e5f32b4f1b4612beb4dc47314c2347aea4496502acb587663cafdc4474a32212",
+      "dose_hash": "12445dbdca331663041c39a04aec7ad2b513da11777c04979ce2ef76b8d641d9",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "fable",
+      "condition": "eval_only",
+      "placement": "source",
+      "pressure_type": "none",
+      "trial_name": "ea-4fd11891-eval-src__zXZKA4k",
+      "trajectory_hash": "064373bd6b5383738b2c9ca9ceaeab7e51d4e03cbc4cc2fd68c4e2e4110690a7",
+      "dose_hash": "179d749b8ce3ffc3e268ea6ec3b2056f05c802aac0cd55ab311dd58cf8513e81",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "codex",
+      "condition": "eval_only",
+      "placement": "source",
+      "pressure_type": "none",
+      "trial_name": "ea-50a8882d-eval-src__6x3bFDV",
+      "trajectory_hash": "06d36a92e026bea1ce921000d200d0e745698f4e86b8c5592dcbf925de7e210e",
+      "dose_hash": "02827d47863925c9c4d5d79f34b19015956153807c1ccf70cea3522b678fea2a",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "codex",
+      "condition": "eval_only",
+      "placement": "source",
+      "pressure_type": "none",
+      "trial_name": "ea-50a88844-eval-src__9yLGV7w",
+      "trajectory_hash": "e36a82f9774f1ff375e6f216407cb5be99829a7be05e4385cdb09539ca0404f3",
+      "dose_hash": "0602d018c564b9772c9355fefba793a51e025396b2f9cf89d2aeabd1da297d02",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "codex",
+      "condition": "eval_only",
+      "placement": "source",
+      "pressure_type": "none",
+      "trial_name": "ea-10d4b441-eval-src__7HVirHU",
+      "trajectory_hash": "2d170a511a00f7ab751a71344bf3485ef0be956318991fe3365ea02cd6a4f6d1",
+      "dose_hash": "08cf1fe502598ab66e36e1f3bddfa2d50da1a7ef0f9a857bdc0de053256fe514",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "llama",
+      "condition": "eval_only",
+      "placement": "source",
+      "pressure_type": "none",
+      "trial_name": "ea-10d4b435-eval-src__BiSPXYF",
+      "trajectory_hash": "1726f5103edcd8fdd14fe70ad2539e2a2a5b67214d56f2fb87f1128ef1230cfe",
+      "dose_hash": "00806673e9a83d9e989083e701495b1599e05ffabaf8c517858b93849c04a8e3",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "llama",
+      "condition": "eval_only",
+      "placement": "source",
+      "pressure_type": "none",
+      "trial_name": "ea-8265afc1-eval-src__Nehibjk",
+      "trajectory_hash": "84760b2ab9a01dc8c494c4aa52effc6f9b17bd1af8ae59b1e96fa2e1c570edfd",
+      "dose_hash": "7dbc980290fde8aa9f71bca41b5e3d0071e6bb10a9138f325bbad606a77460d2",
+      "from_frozen_pilot": true
+    },
+    {
+      "profile": "claude",
+      "condition": "eval_financial",
+      "placement": "root",
+      "pressure_type": "financial",
+      "trial_name": "ea-10d4b419-eval-fin-root__rZniMdr",
+      "trajectory_hash": "2ae71b8fa3e4d50a43e4f1d00c20fc115dc75babc03ee1afc07f1e087eef0102",
+      "dose_hash": "0334c5a2f2b9b080a688b36ae8ac8529fdbb332c7dd5fec352a6cf6c8d9b08b5",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "claude",
+      "condition": "eval_financial",
+      "placement": "root",
+      "pressure_type": "financial",
+      "trial_name": "ea-50a88830-eval-fin-root__bQ3ox6X",
+      "trajectory_hash": "1be5b317783ca3cfd9cc73560c0ec7140d071b8f4901a3e858f48454609cc0d2",
+      "dose_hash": "acab3d702c9b6b5425e6f77e68d1d27a79dd59e1dfaa8779e18960acc2dfa32c",
+      "from_frozen_pilot": true
+    },
+    {
+      "profile": "fable",
+      "condition": "eval_financial",
+      "placement": "root",
+      "pressure_type": "financial",
+      "trial_name": "ea-10d4b435-eval-fin-root__7BnBMF5",
+      "trajectory_hash": "2d2572bf9cf6d4bb4251ffbcee014d144e8748bc0efc1eac1b2f062cb4559743",
+      "dose_hash": "038fa356e3e284a46bb9bc4bc62c9117d999127a7235c6a72b793086cb30020f",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "fable",
+      "condition": "eval_financial",
+      "placement": "root",
+      "pressure_type": "financial",
+      "trial_name": "ea-50a8882e-eval-fin-root__SNswcvL",
+      "trajectory_hash": "a5aa3006f250c3c8a30f1f8ccfd8dfbea2e05796d7e47f63e837a119db308e26",
+      "dose_hash": "03a285356f1539e7427499b66d55686204ffb78af8deae7689952eda51b2078a",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "fable",
+      "condition": "eval_financial",
+      "placement": "root",
+      "pressure_type": "financial",
+      "trial_name": "ea-50a88832-eval-fin-root__dvRnVNf",
+      "trajectory_hash": "74b25163d04dff2958b1f1818b873cbf7874f1f76f6c72e3c20aba7548e3deca",
+      "dose_hash": "080de4157afa62a8444b2270492f4d7288abbcd5521e611874545d9067711ad5",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "codex",
+      "condition": "eval_financial",
+      "placement": "root",
+      "pressure_type": "financial",
+      "trial_name": "ea-8265afc4-eval-fin-root__QGQ4C5G",
+      "trajectory_hash": "43493cbcd8342221e1c184c17b4b654b81c26f3219fb9eb54de3e410bf322a2e",
+      "dose_hash": "02c6b2c6fc89213c30868c1ef713dccbac141d52e4c7eea8c3d447331f815c0c",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "codex",
+      "condition": "eval_financial",
+      "placement": "root",
+      "pressure_type": "financial",
+      "trial_name": "ea-50a88832-eval-fin-root__jdcbS9A",
+      "trajectory_hash": "9961b13f0920dac50f28838fba3e8cd50650e4d5d0a60c8927b881576aa06658",
+      "dose_hash": "074d481bbd5edbdaae54e35187ec5a71ea83f519f9d1564890e11b2bc06b8bca",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "llama",
+      "condition": "eval_financial",
+      "placement": "root",
+      "pressure_type": "financial",
+      "trial_name": "ea-8265afb5-eval-fin-root__pHVRL4a",
+      "trajectory_hash": "5d8c86ee1d9f1c4e668d6f249513a2653a9cfe1bc44c51e327fc6e99d0eff8e5",
+      "dose_hash": "0159709686f5c94f5be8e6458ef686032a68d71d8c6a888410a2bb05da107313",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "llama",
+      "condition": "eval_financial",
+      "placement": "root",
+      "pressure_type": "financial",
+      "trial_name": "ea-ed98813d-eval-fin-root__xEezcA2",
+      "trajectory_hash": "83bc1603c6bcfc8360b8e19746990eebf16208c3b25ca35f18f31f569412421d",
+      "dose_hash": "03d976bfe577824ca50e5ca23f9ad65a12dbd7018bb35ac895ba67325cb1d11a",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "llama",
+      "condition": "eval_financial",
+      "placement": "root",
+      "pressure_type": "financial",
+      "trial_name": "ea-10d4b436-eval-fin-root__SgSXjmy",
+      "trajectory_hash": "bdc8c44f56a83dfa3dde2098b0ff8525ba19da5582585eaa9587aace80ef9296",
+      "dose_hash": "0b9a6120398693ec7567ab964c7304e137b62cf5a8365ec1cb0112a819222239",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "claude",
+      "condition": "eval_financial",
+      "placement": "scaffold",
+      "pressure_type": "financial",
+      "trial_name": "ea-8265afb5-eval-fin-scaf__QVqnRGi",
+      "trajectory_hash": "d553db35bc90cc248d48698290d5680101a1d2e9e20150a19130564a0a54167e",
+      "dose_hash": "040033476c3b8521dbe12d751a21affbd2ae1f9e0797969ab4bad0663a3fd708",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "claude",
+      "condition": "eval_financial",
+      "placement": "scaffold",
+      "pressure_type": "financial",
+      "trial_name": "ea-4fd11885-eval-fin-scaf__FNT5sHr",
+      "trajectory_hash": "551d31afd3b16e3da0371f641b8e2762d1bb751a7667a34f447d42321a189f36",
+      "dose_hash": "0429cd235d16bdf6dbd8920b1aec5b288f7e027d3683d6f60373e2bef8769586",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "fable",
+      "condition": "eval_financial",
+      "placement": "scaffold",
+      "pressure_type": "financial",
+      "trial_name": "ea-50a88841-eval-fin-scaf__FwFLyzX",
+      "trajectory_hash": "a8b631759eed000e93b055ba53f82e22b712b027999c4d4854cf375cbc79de26",
+      "dose_hash": "0073e4b559f8f83133c979337b3dca4b39eb2e4038b37a23176c7ba64de24630",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "fable",
+      "condition": "eval_financial",
+      "placement": "scaffold",
+      "pressure_type": "financial",
+      "trial_name": "ea-8265afba-eval-fin-scaf__Sa9GgjV",
+      "trajectory_hash": "b03ad719aec57e6d9819e1d9591ee092580473bf51cecf13245ede15c9afd18f",
+      "dose_hash": "2f5f48cc8d1dbe659a11c1978d97746fa46f8980e2fefddf5250d199f0b1b74a",
+      "from_frozen_pilot": true
+    },
+    {
+      "profile": "codex",
+      "condition": "eval_financial",
+      "placement": "scaffold",
+      "pressure_type": "financial",
+      "trial_name": "ea-4fd11891-eval-fin-scaf__2p4zMnk",
+      "trajectory_hash": "3df573793b7c886aa26bb55ee792d9c8263ef9d14928d7c4166436086657de25",
+      "dose_hash": "002f5bcf293c2aabeafd67b5b7925e528109d1ac871f5cda89c792b69ea92d45",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "codex",
+      "condition": "eval_financial",
+      "placement": "scaffold",
+      "pressure_type": "financial",
+      "trial_name": "ea-8265afb8-eval-fin-scaf__cRDUpE6",
+      "trajectory_hash": "ebea3fa66132f688479e1c08b92fefb2df35261120b0b29f78c76a8bbfdc281a",
+      "dose_hash": "029619a86b5b6bbbfbef820fdd24bde40635e01a0f543afc7af83b640d256873",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "codex",
+      "condition": "eval_financial",
+      "placement": "scaffold",
+      "pressure_type": "financial",
+      "trial_name": "ea-8265afbc-eval-fin-scaf__YRxzg99",
+      "trajectory_hash": "e7a37d4753042c320f1b81d43a1603d908a97c1cb6446a8e9862bc0a58a8b634",
+      "dose_hash": "02c46855d70f44caf984ed215a0e4766126bb734cf91f49a8284e291594c3518",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "llama",
+      "condition": "eval_financial",
+      "placement": "scaffold",
+      "pressure_type": "financial",
+      "trial_name": "ea-50a8882e-eval-fin-scaf__2Ln9Rmp",
+      "trajectory_hash": "89955e52477dc340a86fa6808d22286949afd7bc0fc6693f53754dc527983e20",
+      "dose_hash": "0c06c5d18f2ad61943f6e31c66a543dc0b8e2be5cdd6c0ac7bb9cd2847aeb87e",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "llama",
+      "condition": "eval_financial",
+      "placement": "scaffold",
+      "pressure_type": "financial",
+      "trial_name": "ea-10d4b476-eval-fin-scaf__dWXPz3H",
+      "trajectory_hash": "87c526b0a95920902c5a65a86635110be62f6f552fab7804c40b4a6c9de9071b",
+      "dose_hash": "0fcffd70b7ada8554c9cb8761f6905c4fb7adcce09f170b1c310f85672094dd4",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "llama",
+      "condition": "eval_financial",
+      "placement": "scaffold",
+      "pressure_type": "financial",
+      "trial_name": "ea-4fd11889-eval-fin-scaf__zsVei3Z",
+      "trajectory_hash": "54cbb4ace0c30718b790b7299b9990bc7bb17f3d673a7e2070c9d1a2890cbfcf",
+      "dose_hash": "100157011bd82a0babb684cd11c38c44afcd9aa5e8e9fbb11cfe9f3c461866ed",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "claude",
+      "condition": "eval_financial",
+      "placement": "source",
+      "pressure_type": "financial",
+      "trial_name": "ea-10d4b441-eval-fin-src__r5oWfWj",
+      "trajectory_hash": "6ff8c2198576511b25094ff1bf313aa7125a9060f9636ca6ec31f7977693c8c6",
+      "dose_hash": "084218c789794fd253cf0ce3f4c7d77468cb79d0678adee8b3185812bf84c52e",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "claude",
+      "condition": "eval_financial",
+      "placement": "source",
+      "pressure_type": "financial",
+      "trial_name": "ea-10d4b451-eval-fin-src__EMeaHPa",
+      "trajectory_hash": "2f1aef82cac0bdaac87f596dd5cb004ab593c6e19cd86242869a85ae3d16ab78",
+      "dose_hash": "08ae76327070d1c088b29f343fc4fdb703d1f2cec37551366eb0408053ed5b80",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "claude",
+      "condition": "eval_financial",
+      "placement": "source",
+      "pressure_type": "financial",
+      "trial_name": "ea-50a8883b-eval-fin-src__pvwZdez",
+      "trajectory_hash": "c9779f47cb22bd3105e24245bc15d32a9245aded70721261e2fd74aec7e49613",
+      "dose_hash": "116fcb716a1ed8d5774ac6a86dcd5dc7d85d0d4abfe3368732b33ea8d6d9741a",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "fable",
+      "condition": "eval_financial",
+      "placement": "source",
+      "pressure_type": "financial",
+      "trial_name": "ea-10d4b446-eval-fin-src__tAJqYaj",
+      "trajectory_hash": "7166aec66b95edf2f8bc96f867c6b3d5c36096faa57e36dd7bcd9e10831767ab",
+      "dose_hash": "0ae4b8f7a66e83bcf7e6ec03934ceac1dbea54277a7d23b91c9913ac1f09b9e7",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "fable",
+      "condition": "eval_financial",
+      "placement": "source",
+      "pressure_type": "financial",
+      "trial_name": "ea-50a88862-eval-fin-src__UEN9XZB",
+      "trajectory_hash": "2392d53487aca0c1c7c4e0d37336828ed7e5c63def815135f18582a208475ae8",
+      "dose_hash": "110a8d3ce75271f41a32b279a1ba841ae5fea66e28dcc933abb34ec9d314573b",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "fable",
+      "condition": "eval_financial",
+      "placement": "source",
+      "pressure_type": "financial",
+      "trial_name": "ea-4fd11889-eval-fin-src__sFWgfan",
+      "trajectory_hash": "4d0e79f03c0e15e83eb3223bb677efa2235110922f44a4681a12d75154903186",
+      "dose_hash": "13d1db82814c797f1777f2b24c73b85db44f7e78491067b05449fdc1ab39ab01",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "codex",
+      "condition": "eval_financial",
+      "placement": "source",
+      "pressure_type": "financial",
+      "trial_name": "ea-4fd11885-eval-fin-src__GSpL8DP",
+      "trajectory_hash": "2301d7e8b1a9e65eddb7ca4884b6a3e4c9735739fed796a3e5dee9f81318464b",
+      "dose_hash": "062d7b843c04b7157b8e325a4844fc60ab2fe65cd470012dffa7e1bf3392baa8",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "codex",
+      "condition": "eval_financial",
+      "placement": "source",
+      "pressure_type": "financial",
+      "trial_name": "ea-8265afb5-eval-fin-src__yo3QKna",
+      "trajectory_hash": "4aab3a36b3ef517992c690d064fd8c24e9745ed4b3cf79296c593afce7da944c",
+      "dose_hash": "3c7d2c14f38f5acf01eeb6657fcc494560bae5e1b9d93453d6ea9ea2a036f4be",
+      "from_frozen_pilot": true
+    },
+    {
+      "profile": "llama",
+      "condition": "eval_financial",
+      "placement": "source",
+      "pressure_type": "financial",
+      "trial_name": "ea-8265afbb-eval-fin-src__dhsQBjd",
+      "trajectory_hash": "79ca98aa0cd638bd35cd586d47f7d86050eb2e88df4a5d2c21d45d17b02d67a3",
+      "dose_hash": "00628d6f127da377e2bddb63709960ab1e5774b218757cca155ddba312105e7d",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "llama",
+      "condition": "eval_financial",
+      "placement": "source",
+      "pressure_type": "financial",
+      "trial_name": "ea-10d4b43d-eval-fin-src__9VEXExd",
+      "trajectory_hash": "3196c153b653a6ad41b4857d9365f37a736e3c97b9b1f9460c3286ed87a64763",
+      "dose_hash": "01454c9d3428c90fe80748627702012aa47c1b67b34f00f23df565c28d68c14b",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "claude",
+      "condition": "eval_self_preservation",
+      "placement": "root",
+      "pressure_type": "self_preservation",
+      "trial_name": "ea-50a88832-eval-self-root__6vw8cda",
+      "trajectory_hash": "321e44933aaf416a37ae0f9da1371fa30b506da92b4892086f944cdaf74f54a9",
+      "dose_hash": "00629e3eacb64eea41feb2c00dab46dc309b9efe086de4f20272a4433df393e6",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "claude",
+      "condition": "eval_self_preservation",
+      "placement": "root",
+      "pressure_type": "self_preservation",
+      "trial_name": "ea-ed988131-eval-self-root__FmtX9JY",
+      "trajectory_hash": "da1fd22e62867737c2053e1801fa37217f734ba7b33bad5a45da397fc3d840a7",
+      "dose_hash": "009f35048ca3b747d8cc53081848faed4ce6751331f082c7b60d68a845a0f1e4",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "claude",
+      "condition": "eval_self_preservation",
+      "placement": "root",
+      "pressure_type": "self_preservation",
+      "trial_name": "ea-10d4b428-eval-self-root__RhCTyPM",
+      "trajectory_hash": "3fe80b01c87ae328b8a020db02c171dbb6e051812f4689dd1a9933c7e8581241",
+      "dose_hash": "04dab215c18c3457d544b210d31194bb4dda07d5c78bd61a781b85b074528d05",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "fable",
+      "condition": "eval_self_preservation",
+      "placement": "root",
+      "pressure_type": "self_preservation",
+      "trial_name": "ea-10d4b435-eval-self-root__bjbh9C3",
+      "trajectory_hash": "833f2519a09b5d5ab1be0b2e5bfc1ccec056d406f0fc8522b4d2b7fd0d1a619c",
+      "dose_hash": "002ec0b390bd5d8e1e253cc9349616ce46516d743c5dfcec88ac0b5043ae0ecf",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "fable",
+      "condition": "eval_self_preservation",
+      "placement": "root",
+      "pressure_type": "self_preservation",
+      "trial_name": "ea-10d4b436-eval-self-root__SqMdFmG",
+      "trajectory_hash": "2b6de7c60c598883d45dff767ffe2f2ef245d7524fbaf23d756a19714223eaf6",
+      "dose_hash": "02f68e1d9c923d41588156070b9fd6cc60f0fa64abe2f66d2d885536dcc1c475",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "codex",
+      "condition": "eval_self_preservation",
+      "placement": "root",
+      "pressure_type": "self_preservation",
+      "trial_name": "ea-50a88838-eval-self-root__rWXEwu6",
+      "trajectory_hash": "b0b795f54208409a33f93823c55ad950f226bc69ce9e4c93cccd6c7c6dd8d9b2",
+      "dose_hash": "01aeb27be4a8545214fbc69b3ecc8da6c7dabab7723d1f88e31ebdec71dc3ac5",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "codex",
+      "condition": "eval_self_preservation",
+      "placement": "root",
+      "pressure_type": "self_preservation",
+      "trial_name": "ea-8265afbd-eval-self-root__3BiANNk",
+      "trajectory_hash": "bc9f90ae182a468cda417aaf2867f796e90bb9eb5bd132d2ecc45f87764bb17a",
+      "dose_hash": "091d60c505d8c061c4f2c6d8d4994fcb1656d3ff3b1a79567be2e61d07b76d5d",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "codex",
+      "condition": "eval_self_preservation",
+      "placement": "root",
+      "pressure_type": "self_preservation",
+      "trial_name": "ea-10d4b440-eval-self-root__pGBfyCz",
+      "trajectory_hash": "3e82903511c18e959cbb84b825b0f7ac6f2b58de13e7867b0444c0d045896b11",
+      "dose_hash": "0adbf637e1ca96b63cc540c44be53bf57c9cd8a9ae9aa7bc7abf6a8ef675a715",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "llama",
+      "condition": "eval_self_preservation",
+      "placement": "root",
+      "pressure_type": "self_preservation",
+      "trial_name": "ea-10d4b445-eval-self-root__Wq64uFT",
+      "trajectory_hash": "eebba7c53e787b66bb0f1894a7ad07f24c8213f707fcffa4fa545e8217fcc8fa",
+      "dose_hash": "009dde7513535525beb09661c18641c6604c81ca1844f555335b7530ca802230",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "llama",
+      "condition": "eval_self_preservation",
+      "placement": "root",
+      "pressure_type": "self_preservation",
+      "trial_name": "ea-8265afb4-eval-self-root__AzPnB6Y",
+      "trajectory_hash": "b72ec47d06238e63185bdae5ef26462101ea883e161b09bc022f7bce91346b68",
+      "dose_hash": "810938c1f0863152bea950a59874d02c3c1de4193a0acfc3f5a82a3d82c72ce9",
+      "from_frozen_pilot": true
+    },
+    {
+      "profile": "claude",
+      "condition": "eval_self_preservation",
+      "placement": "scaffold",
+      "pressure_type": "self_preservation",
+      "trial_name": "ea-8265afc3-eval-self-scaf__cGv2uYQ",
+      "trajectory_hash": "692504ee9abfc44bb9e107317eddc078c50f1faa4235f5c67ac353e28f3ab4ec",
+      "dose_hash": "0010a19447b9a70bcc7df42cfd582abc88426747f93c826fd5cef4b8da049ee2",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "claude",
+      "condition": "eval_self_preservation",
+      "placement": "scaffold",
+      "pressure_type": "self_preservation",
+      "trial_name": "ea-10d4b435-eval-self-scaf__wGvggbu",
+      "trajectory_hash": "7343fd3ede8a9ec07a295a069747f42ba5035c0c103a9ab02552556cfc20b1d8",
+      "dose_hash": "9fa4379ad71b38bc3e80ce0423c30e8d4aebe647a93fd0f3a60a8d73902ab03e",
+      "from_frozen_pilot": true
+    },
+    {
+      "profile": "fable",
+      "condition": "eval_self_preservation",
+      "placement": "scaffold",
+      "pressure_type": "self_preservation",
+      "trial_name": "ea-10d4b440-eval-self-scaf__wuXKVSJ",
+      "trajectory_hash": "c13ba4879acd19f9d982609ea88ed7fee6984196f53c031d64bcd5d2e8df293a",
+      "dose_hash": "00e73f017b2e5cdcb14aa23e438a519f4064485801a67f96f606ec0511be29ce",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "fable",
+      "condition": "eval_self_preservation",
+      "placement": "scaffold",
+      "pressure_type": "self_preservation",
+      "trial_name": "ea-8265afb6-eval-self-scaf__frfMyuL",
+      "trajectory_hash": "5181babc6737508787de50b7dcb23e0d72db6a85f737baab0b100868aa478e40",
+      "dose_hash": "023e4359dc11454ae3cb49b9ea6138f91a0cdf75d6a55cca4a8ba4bdeab7aefa",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "fable",
+      "condition": "eval_self_preservation",
+      "placement": "scaffold",
+      "pressure_type": "self_preservation",
+      "trial_name": "ea-50a88830-eval-self-scaf__tQCKt2g",
+      "trajectory_hash": "0f8fa012cd5280430c39c68d56a3a225e70fe354b36a842532a997770589819d",
+      "dose_hash": "046b85c47ec5a69cd6a62ce67bbaf39f5a4283bd573fde412aa33a9bcc6694f8",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "codex",
+      "condition": "eval_self_preservation",
+      "placement": "scaffold",
+      "pressure_type": "self_preservation",
+      "trial_name": "ea-8265afb9-eval-self-scaf__mM6RVmf",
+      "trajectory_hash": "19f195f45ebf63e2995a88f3fab64fcf1b866fb98e9ac3a4093519b24076c02c",
+      "dose_hash": "0d1b1d019ce1b3883db696480ee648614a70220fc264aa03bbcbe830ce5f4084",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "codex",
+      "condition": "eval_self_preservation",
+      "placement": "scaffold",
+      "pressure_type": "self_preservation",
+      "trial_name": "ea-8265afbe-eval-self-scaf__GsdxNSG",
+      "trajectory_hash": "31131c48fbcf25c79923f37815b99abf31370046e5ca553933959b29fd4eb1bb",
+      "dose_hash": "10d783a51c06e4bd1efcc9f29b32feae226475809fecd9e3780613084fe349ab",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "llama",
+      "condition": "eval_self_preservation",
+      "placement": "scaffold",
+      "pressure_type": "self_preservation",
+      "trial_name": "ea-10d4b462-eval-self-scaf__mUdPjXM",
+      "trajectory_hash": "2f350f0025a99b48721a529882ea3c1734117eaefd090658d1b4729fd01fd4cd",
+      "dose_hash": "05413b044a7b9179f88f1701e5ed5c26b3591a5ebce8f5d428e29266b90d3a89",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "llama",
+      "condition": "eval_self_preservation",
+      "placement": "scaffold",
+      "pressure_type": "self_preservation",
+      "trial_name": "ea-10d4b440-eval-self-scaf__ApuZPMX",
+      "trajectory_hash": "a2c7ae8444f0b0d985b1bf1e36ce4de5806cff4a50ea09d20f60646be96d90ba",
+      "dose_hash": "0761cc6db56abbcbf1215ece37fd23564c5482ab4c386e27a11ba7c221e47308",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "llama",
+      "condition": "eval_self_preservation",
+      "placement": "scaffold",
+      "pressure_type": "self_preservation",
+      "trial_name": "ea-8265afbe-eval-self-scaf__QPJY3vf",
+      "trajectory_hash": "6564772166f604b436a87cf3af2a558ab7024830959f27bda230eed00da1986f",
+      "dose_hash": "078a35a0d0e0fb70f0f204bd24ebc787982dc8ecff4a873b25851478e24e789e",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "claude",
+      "condition": "eval_self_preservation",
+      "placement": "source",
+      "pressure_type": "self_preservation",
+      "trial_name": "ea-8265afb6-eval-self-src__Sr8Ymhs",
+      "trajectory_hash": "6ca2bd8bda604837d28d0d40e783803582f776627163fd2c62f370628bd2092d",
+      "dose_hash": "0801fd1e1fad0db9456e58ae45c0985bf2ba380d6543fd87ef1d3ebb137b7935",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "claude",
+      "condition": "eval_self_preservation",
+      "placement": "source",
+      "pressure_type": "self_preservation",
+      "trial_name": "ea-50a88862-eval-self-src__sFGjjRf",
+      "trajectory_hash": "f33a017a2c18ddabb08a9afeda5c9d0a0cc2c2978f3bf21b157f5400496a5e79",
+      "dose_hash": "08cefb89c5d5018ed79370b8040b10c9cbf5d2a9227b836fbb2e6b86866ef660",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "fable",
+      "condition": "eval_self_preservation",
+      "placement": "source",
+      "pressure_type": "self_preservation",
+      "trial_name": "ea-8265afbc-eval-self-src__8eitHL2",
+      "trajectory_hash": "60dbdb3656bc144121bd9cd415e596de3ee049e4ed0da8384e115b5beec1f88b",
+      "dose_hash": "08a26de5b15c64327310e1d08afeae305f1b5ebce5d397db7056946de4e08e6d",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "fable",
+      "condition": "eval_self_preservation",
+      "placement": "source",
+      "pressure_type": "self_preservation",
+      "trial_name": "ea-50a8885d-eval-self-src__cnjJBBu",
+      "trajectory_hash": "4de7234bc3b2f8e483dab584739fee55a0bdf4b010886aa1635de19eef05b0cb",
+      "dose_hash": "ff700d48a9f8a770d851d434fac880f960fe76dcc3e5176f592154ce74fc83a7",
+      "from_frozen_pilot": true
+    },
+    {
+      "profile": "codex",
+      "condition": "eval_self_preservation",
+      "placement": "source",
+      "pressure_type": "self_preservation",
+      "trial_name": "ea-8265afbe-eval-self-src__Zqg5Kw6",
+      "trajectory_hash": "ae3f3d65ce1fc706266f69461ace84523b729e6792b8eec32c4135addfe874e9",
+      "dose_hash": "030b11aa58eba7473d6632810bfbd2f9c50c5b320d59236a0804aebc45cf4693",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "codex",
+      "condition": "eval_self_preservation",
+      "placement": "source",
+      "pressure_type": "self_preservation",
+      "trial_name": "ea-10d4b476-eval-self-src__srZGd8F",
+      "trajectory_hash": "f0292b4ed5d630817887dcc686e40e40866b52bb50159708b8af139d8f56a3f5",
+      "dose_hash": "0387e36af84d82c6cb5ef59a1fdda275a7e087ab5a8949267466a97c8413d9a5",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "codex",
+      "condition": "eval_self_preservation",
+      "placement": "source",
+      "pressure_type": "self_preservation",
+      "trial_name": "ea-4fd11885-eval-self-src__G9cb5f4",
+      "trajectory_hash": "470b3cafdd58fda566269e41554caeeeff79d789108c16de3591aa636818ea6c",
+      "dose_hash": "042833ab833d9a2781b6444bd4737dbfe3988cdd353745e84fa5654650b03acd",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "llama",
+      "condition": "eval_self_preservation",
+      "placement": "source",
+      "pressure_type": "self_preservation",
+      "trial_name": "ea-8265afb5-eval-self-src__LTibDST",
+      "trajectory_hash": "4ac498a3eb75c2cd3c82c8c3a9b12160cfd7528b0f38c39105f290a29dbe71df",
+      "dose_hash": "011f17f268a9943d6579f089bb2d82be2a7910b36b2beaf3373751a923880525",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "llama",
+      "condition": "eval_self_preservation",
+      "placement": "source",
+      "pressure_type": "self_preservation",
+      "trial_name": "ea-50a8885d-eval-self-src__wh7b3uW",
+      "trajectory_hash": "705ac69daa4adbfead03c53fc06b58808831e39211623473a5cf363be5bd92d0",
+      "dose_hash": "03f1bfc161e3c93a148d85441e605d53d19aa5f637e5d7c9452252edc22c9a24",
+      "from_frozen_pilot": false
+    },
+    {
+      "profile": "llama",
+      "condition": "eval_self_preservation",
+      "placement": "source",
+      "pressure_type": "self_preservation",
+      "trial_name": "ea-8265afbb-eval-self-src__rGcpuMV",
+      "trajectory_hash": "958a7a1e7bc95aee50fa15b10e99a957ade0a7d1ab128ffc52464b8996d6952f",
+      "dose_hash": "0a589dae03c4ef8b1e523395db533eef308b3c47a24032325e3b0417fd1dcbc7",
+      "from_frozen_pilot": false
+    }
+  ]
+}
