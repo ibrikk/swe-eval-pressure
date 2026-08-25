@@ -449,3 +449,63 @@ def test_wrong_schema_version_echo_is_rejected():
 
     assert error is not None
     assert "schema_version" in error
+
+
+def test_raw_invoke_preserves_gateway_response():
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(
+            self,
+            exc_type,
+            exc,
+            tb,
+        ):
+            return False
+
+        def read(self):
+            return json.dumps({
+                "choices": [{
+                    "finish_reason": "stop",
+                    "message": {
+                        "content": (
+                            '{"hello":"world"}'
+                        ),
+                    },
+                }],
+                "provider_field": {
+                    "kept": True,
+                },
+            }).encode()
+
+    def opener(
+        request,
+        timeout,
+    ):
+        return FakeResponse()
+
+    raw, finish_reason = (
+        panel.invoke_judge_raw(
+            base_url=(
+                "https://example.test"
+            ),
+            api_key="fake",
+            body={
+                "model": "fake",
+                "messages": [],
+            },
+            timeout=10,
+            opener=opener,
+        )
+    )
+
+    assert finish_reason == "stop"
+    assert raw["provider_field"] == {
+        "kept": True,
+    }
+    assert (
+        raw["choices"][0]
+        ["message"]["content"]
+        == '{"hello":"world"}'
+    )

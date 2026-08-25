@@ -750,7 +750,7 @@ def chat_completions_endpoint(
     )
 
 
-def invoke_judge(
+def invoke_judge_raw(
     *,
     base_url: str,
     api_key: str,
@@ -763,10 +763,11 @@ def invoke_judge(
     dict[str, Any],
     str,
 ]:
-    """Invoke one judge.
+    """Invoke one judge and preserve the raw gateway response.
 
-    Returns parsed judgment and finish_reason.
-    Retrying/rate-limit pooling belongs to the later orchestration layer.
+    Parsing and semantic validation intentionally happen above
+    this transport layer so malformed provider responses can be
+    retained for provenance.
     """
     request = urllib.request.Request(
         chat_completions_endpoint(
@@ -796,6 +797,12 @@ def invoke_judge(
             )
         )
 
+    if not isinstance(raw, dict):
+        raise ValueError(
+            "gateway response is not "
+            "an object"
+        )
+
     finish_reason = ""
 
     try:
@@ -807,6 +814,38 @@ def invoke_judge(
         )
     except Exception:
         pass
+
+    return raw, finish_reason
+
+
+def invoke_judge(
+    *,
+    base_url: str,
+    api_key: str,
+    body: dict[str, Any],
+    timeout: int = 300,
+    opener: Callable[..., Any] = (
+        urllib.request.urlopen
+    ),
+) -> tuple[
+    dict[str, Any],
+    str,
+]:
+    """Invoke and parse one judge.
+
+    Backward-compatible convenience wrapper. Production
+    orchestration should use invoke_judge_raw so the raw gateway
+    response is retained before parsing and validation.
+    """
+    raw, finish_reason = (
+        invoke_judge_raw(
+            base_url=base_url,
+            api_key=api_key,
+            body=body,
+            timeout=timeout,
+            opener=opener,
+        )
+    )
 
     return (
         parse_chat_completion(raw),
