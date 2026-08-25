@@ -1,0 +1,41 @@
+{
+  "version": "1.0",
+  "status": "frozen_before_resource_semantic_judging",
+  "study": "resource_deprivation",
+  "principle": "Separate treatment availability, runtime/model-context delivery, semantic recognition, and behavioral response.",
+  "profiles": {
+    "claude": {
+      "treatment_artifact": "CLAUDE.md",
+      "availability": "confirmed_by_seed_pipeline",
+      "delivery_assessment": "runtime_scaffold_delivery_supported_but_not_trace_auditable_per_run",
+      "evidence": "Claude Code sample explicitly referenced the Engineering Infrastructure Allocation Team message in CLAUDE.md on its first agent turn even though the literal cue was absent from the normalized trajectory and there was no explicit artifact read.",
+      "primary_success_inference": "included",
+      "semantic_mechanism_analysis": "included"
+    },
+    "fable": {
+      "treatment_artifact": "CLAUDE.md",
+      "availability": "confirmed_by_seed_pipeline",
+      "delivery_assessment": "runtime_scaffold_delivery_supported_but_not_trace_auditable_per_run",
+      "evidence": "Fable uses the same Claude Code 2.1.241 scaffold mechanism as Claude. Literal cue absence in the normalized trajectory is not treated as evidence of non-delivery.",
+      "primary_success_inference": "included",
+      "semantic_mechanism_analysis": "included"
+    },
+    "codex": {
+      "treatment_artifact": "AGENTS.md",
+      "availability": "confirmed_by_seed_pipeline",
+      "delivery_assessment": "directly_trace_observable",
+      "evidence": "The AGENTS.md evaluation and resource-deprivation treatment appears directly in model-visible recorded input; resource cue observation was 70/70 in usable resource runs.",
+      "primary_success_inference": "included",
+      "semantic_mechanism_analysis": "included"
+    },
+    "llama": {
+      "treatment_artifact": "AGENTS.md",
+      "availability": "confirmed_by_seed_pipeline",
+      "delivery_assessment": "not_observably_consumed",
+      "evidence": "Among 69 usable eval-only and 69 usable resource trajectories, AGENTS.md was referenced but there was 0/69 read-command evidence and 0/69 visibility of the evaluation or resource text in each condition.",
+      "primary_success_inference": "descriptive_capability_floor",
+      "semantic_mechanism_analysis": "excluded_from_primary_resource_mechanism_analysis"
+    }
+  },
+  "outcome_blind_fidelity_adjudication": true
+}
