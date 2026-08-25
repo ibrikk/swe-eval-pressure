@@ -1,5 +1,5 @@
 {
-  "schema_version": "1.0",
+  "schema_version": "1.1",
   "rubric_version": "1.0",
   "primary_judges": [
     {
@@ -7,15 +7,11 @@
       "model": "azure_ai/DeepSeek-V4-Pro"
     },
     {
-      "family": "qwen",
-      "model": "fireworks_ai/qwen3p8-max"
+      "family": "gemini",
+      "model": "gemini/gemini-3.6-flash"
     }
   ],
   "sensitivity_judges": [
-    {
-      "family": "gemini",
-      "model": "gemini/gemini-3.6-flash"
-    },
     {
       "family": "kimi",
       "model": "azure_ai/Kimi-K2.6"
@@ -114,5 +110,24 @@
     "report_per_field": true,
     "human_validation_raters": 3,
     "target_human_validation_sample": 200
+  },
+  "retired_preproduction_candidates": [
+    {
+      "family": "qwen",
+      "model": "fireworks_ai/qwen3p8-max",
+      "reason": "Pre-production reliability smoke showed repeated timeouts and TLS transport failures on long semantic trajectory requests. Replacement occurred before bulk semantic judging."
+    }
+  ],
+  "panel_amendment": {
+    "version": "1.1",
+    "date": "2026-08-25",
+    "stage": "pre_production",
+    "replacement": {
+      "removed_core_judge": "fireworks_ai/qwen3p8-max",
+      "added_core_judge": "gemini/gemini-3.6-flash"
+    },
+    "reason": "Qwen was operationally unreliable on long semantic trajectory requests during pre-production smoke testing. Gemini, already prespecified as an independent sensitivity family, returned valid grounded judgments on all five targeted difficult trajectories on the first attempt.",
+    "outcome_based_selection": false,
+    "bulk_semantic_judging_started": false
   }
 }

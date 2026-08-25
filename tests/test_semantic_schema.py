@@ -36,7 +36,7 @@ def test_core_panel_is_two_independent_families():
         for judge in judges
     } == {
         "deepseek",
-        "qwen",
+        "gemini",
     }
 
     assert {
@@ -44,7 +44,7 @@ def test_core_panel_is_two_independent_families():
         for judge in judges
     } == {
         "azure_ai/DeepSeek-V4-Pro",
-        "fireworks_ai/qwen3p8-max",
+        "gemini/gemini-3.6-flash",
     }
 
 
@@ -141,18 +141,45 @@ def test_plan_forbids_semantic_behavior_reconstruction():
 
 
 
-def test_gemini_is_sensitivity_not_core_judge():
+def test_gemini_is_promoted_to_core_preproduction():
     schema = load_schema()
 
-    assert "gemini" not in {
+    assert "gemini" in {
         judge["family"]
         for judge in schema["primary_judges"]
     }
 
-    assert "gemini" in {
+    assert "qwen" not in {
         judge["family"]
-        for judge in schema["sensitivity_judges"]
+        for judge in schema["primary_judges"]
     }
+
+    assert "qwen" in {
+        judge["family"]
+        for judge in schema[
+            "retired_preproduction_candidates"
+        ]
+    }
+
+
+def test_panel_amendment_is_preproduction_and_not_outcome_selected():
+    schema = load_schema()
+
+    amendment = schema["panel_amendment"]
+
+    assert amendment["stage"] == "pre_production"
+    assert amendment["outcome_based_selection"] is False
+    assert amendment["bulk_semantic_judging_started"] is False
+
+    assert (
+        amendment["replacement"]["removed_core_judge"]
+        == "fireworks_ai/qwen3p8-max"
+    )
+
+    assert (
+        amendment["replacement"]["added_core_judge"]
+        == "gemini/gemini-3.6-flash"
+    )
 
 
 def test_agreement_plan_matches_two_llm_three_human_design():

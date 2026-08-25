@@ -337,3 +337,39 @@ judge-agreement/disagreement cases, model families, conditions, and placements.
 
 This structure intentionally mirrors ASPI's two-LLM plus three-human validation
 architecture while adding AC1 as a robustness analysis.
+
+
+## Pre-production panel amendment — 2026-08-25
+
+The original version 1.0 plan specified
+`fireworks_ai/qwen3p8-max` as the second core judge and
+`gemini/gemini-3.6-flash` as a prespecified independent sensitivity judge.
+
+Before any bulk semantic judging was performed, a provider-reliability smoke test
+was conducted on long historical trajectories.
+
+The Qwen route was operationally unreliable for these requests. Across targeted
+difficult cells, repeated attempts produced read timeouts and TLS transport
+failures, including cells that remained unresolved after three attempts. A
+separate minimal JSON probe confirmed that the model ID and JSON mode were
+functional, indicating that the failure was specific to sustained long-context
+semantic judging rather than an invalid model configuration.
+
+The already-prespecified Gemini judge was then evaluated on the same five
+difficult trajectories. All five returned parseable, schema-valid,
+agent-grounded judgments on the first attempt.
+
+Accordingly, before bulk semantic labels were collected:
+
+- `azure_ai/DeepSeek-V4-Pro` remains the first core judge;
+- `gemini/gemini-3.6-flash` replaces Qwen as the second core judge;
+- `fireworks_ai/qwen3p8-max` is retained in provenance as a retired
+  pre-production candidate rather than silently removed;
+- `azure_ai/Kimi-K2.6` remains a backup/sensitivity family.
+
+This amendment was made for operational measurement reliability, not because of
+the semantic labels produced by either candidate judge. No full-study semantic
+results had been generated or inspected when the replacement was made.
+
+The semantic rubric, evidence-grounding requirements, consensus rule, and human
+validation plan are unchanged.
