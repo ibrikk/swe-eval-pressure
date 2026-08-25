@@ -825,6 +825,8 @@ For an interim deterministic snapshot while runs are still accumulating results:
 
 The analyzer is trajectory-first. It discovers compatible completed trajectories and reconstructs the study from their manifests, so unsharded runs, multiple shards, resumed runs, and partial runs use the same analysis path. Matched effects are calculated only when the baseline and treatment trajectories for the **same base task, placement, and replicate** are both available and substantively usable.
 
+For Mini-SWE text-based agents such as Llama, the analyzer recovers executed shell actions from fenced `mswea_bash_command` blocks rather than requiring provider-native structured tool calls. Historical Llama runs marked completed but containing no recorded agent/model trajectory step are classified as `agent_protocol_error` and excluded from substantive model outcomes. Modal/image-build failures remain `environment_error` infrastructure censorship.
+
 ### Deterministic measurements
 
 Structured logs are used for measurements that do not require interpretation: terminal status, verifier rewards, raw individual tool calls, tool-bearing turns, tool categories, validation/test commands, token use, duration, treatment-file access, whether the cue text entered the recorded model-visible trajectory, public internet/code-host activity, and modifications to tests or evaluation-context files. These measurements remain separate fields in the canonical trial-level analysis.

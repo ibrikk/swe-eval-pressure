@@ -31,7 +31,7 @@ from typing import Any, Iterable
 
 from litellm_pool import RateLimitKeyPool, parse_litellm_keys, parse_reset_epoch
 
-ANALYZER_SCHEMA = "2.1"
+ANALYZER_SCHEMA = "2.2"
 SEMANTIC_JUDGE_VERSION = "2.6"
 SEMANTIC_JUDGE_TEMPERATURE = 0.0
 
@@ -581,6 +581,62 @@ def observation_failed(content: str) -> bool:
     return any(re.search(pattern, low) for pattern in patterns)
 
 
+TEXT_BASH_BLOCK_RE = re.compile(
+    r"```mswea_bash_command\s*\n(.*?)\n```",
+    re.IGNORECASE | re.DOTALL,
+)
+
+
+def text_based_shell_calls(step: dict[str, Any]) -> list[dict[str, Any]]:
+    # Recover Mini-SWE text-parsed shell actions from an agent step.
+    message = step.get("message", "")
+    if not isinstance(message, str):
+        message = "\n".join(all_strings(message))
+
+    commands = [
+        match.strip()
+        for match in TEXT_BASH_BLOCK_RE.findall(message)
+        if match.strip()
+    ]
+    if not commands:
+        return []
+
+    observation = step.get("observation")
+    if observation in (None, ""):
+        observation_text = ""
+    elif isinstance(observation, str):
+        observation_text = observation
+    else:
+        try:
+            observation_text = json.dumps(
+                observation,
+                ensure_ascii=False,
+                default=str,
+            )
+        except Exception:
+            observation_text = "\n".join(all_strings(observation))
+
+    step_id = str(step.get("step_id") or "")
+    recovered: list[dict[str, Any]] = []
+    for idx, command in enumerate(commands, start=1):
+        recovered.append(
+            {
+                "call_id": f"text-{step_id}-{idx}",
+                "name": "bash",
+                "category": "bash",
+                "command": command,
+                "path": "",
+                "arguments_text": command,
+                "observation": observation_text,
+                "failed": int(
+                    bool(observation_text)
+                    and observation_failed(observation_text)
+                ),
+            }
+        )
+    return recovered
+
+
 def extract_tools(trajectory: Any) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     calls: list[dict[str, Any]] = []
     steps = agent_steps(trajectory)
@@ -589,6 +645,10 @@ def extract_tools(trajectory: Any) -> tuple[list[dict[str, Any]], dict[str, Any]
     for step in steps:
         step_calls = step.get("tool_calls")
         if not isinstance(step_calls, list) or not step_calls:
+            recovered = text_based_shell_calls(step)
+            if recovered:
+                tool_bearing_turns += 1
+                calls.extend(recovered)
             continue
         tool_bearing_turns += 1
         observations = observation_by_call(step)
@@ -1024,6 +1084,37 @@ def select_candidates(
     return selected, duplicate_rows, warnings
 
 
+def classify_agent_protocol_status(
+    profile: str,
+    status: str,
+    exc_type: str,
+    exc_message: str,
+    trajectory_path: Path | None,
+    result: dict[str, Any],
+    trajectory: Any,
+) -> tuple[str, str, str]:
+    # Harbor can report a historical Mini-SWE/Llama run as completed even when
+    # the recorded trajectory contains no agent/model step. Such a run has no
+    # observable solver behavior and must not be counted as a substantive
+    # coding-task outcome.
+    if (
+        profile == "llama"
+        and status == "completed"
+        and trajectory_path is not None
+        and result.get("agent_execution") is not None
+        and result.get("agent_result") is not None
+        and len(agent_steps(trajectory)) == 0
+    ):
+        return (
+            "agent_protocol_error",
+            "NoRecordedAgentStep",
+            "Harbor marked the Mini-SWE trial completed, but the recorded "
+            "trajectory contains no agent/model steps. Excluded from "
+            "substantive model outcomes.",
+        )
+    return status, exc_type, exc_message
+
+
 def ingest_trial(
     project_root: Path,
     profile: str,
@@ -1043,6 +1134,16 @@ def ingest_trial(
     external = external_lookup(calls, str(item.get("repository") or ""))
     integrity = integrity_metrics(trial, patch, item)
     status, exc_type, exc_message = terminal_status(result)
+    status, exc_type, exc_message = classify_agent_protocol_status(
+        profile,
+        status,
+        exc_type,
+        exc_message,
+        trajectory_path,
+        result,
+        trajectory,
+    )
+
     verifier_result = result.get("verifier_result") or {}
     rewards = verifier_result.get("rewards", {}) or {}
     if status == "safety_refusal" and rewards.get("overall_pass") in {None, ""}:
