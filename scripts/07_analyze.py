@@ -29,6 +29,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
+from behavior_inference import (
+    BEHAVIOR_BINARY_EFFECT_FIELDS,
+    BEHAVIOR_MULTIPLICITY_FIELDS,
+    primary_binary_effect_rows,
+)
 from behavior_metrics import (
     PRIMARY_BINARY_ENDPOINTS,
     SECONDARY_ACTION_METRICS,
@@ -42,7 +47,7 @@ from behavior_tables import (
 )
 from litellm_pool import RateLimitKeyPool, parse_litellm_keys, parse_reset_epoch
 
-ANALYZER_SCHEMA = "2.4"
+ANALYZER_SCHEMA = "2.5"
 SEMANTIC_JUDGE_VERSION = "2.6"
 SEMANTIC_JUDGE_TEMPERATURE = 0.0
 
@@ -2577,6 +2582,8 @@ def report_markdown(
             "- `behavior_trials.csv` — deterministic substantive trajectory-level behavioral measurements.",
             "- `behavior_prevalence.csv` — descriptive primary-behavior prevalence by profile × condition × placement.",
             "- `matched_behavior_pairs.csv` — same-task behavioral baseline/treatment values and deltas with censored sides left missing.",
+            "- `behavior_binary_effects.csv` — primary paired binary behavioral effects, bootstrap CIs, exact McNemar tests, and Holm-adjusted p-values.",
+            "- `behavior_multiplicity.csv` — explicit primary behavioral multiplicity-family accounting.",
             "- `matched_pairs.csv` — planned and usable within-task comparisons, including legacy deltas.",
             "- `coverage.csv` — condition/placement coverage for partial or complete runs.",
             "- `terminal_status.csv` — execution/censoring status counts.",
@@ -2907,6 +2914,16 @@ def main() -> None:
         )
     )
 
+    (
+        behavior_binary_effects,
+        behavior_multiplicity,
+    ) = primary_binary_effect_rows(
+        matched_behavior_pairs,
+        analysis_schema_version=ANALYZER_SCHEMA,
+        analysis_mode=args.mode,
+        study_signature=signature,
+    )
+
     # Canonical row-level outputs.
     write_csv(output_dir / "trials.csv", rows)
     write_json(output_dir / "trials.json", rows)
@@ -2924,6 +2941,16 @@ def main() -> None:
         output_dir / "matched_behavior_pairs.csv",
         matched_behavior_pairs,
         fieldnames=MATCHED_BEHAVIOR_PAIR_FIELDS,
+    )
+    write_csv(
+        output_dir / "behavior_binary_effects.csv",
+        behavior_binary_effects,
+        fieldnames=BEHAVIOR_BINARY_EFFECT_FIELDS,
+    )
+    write_csv(
+        output_dir / "behavior_multiplicity.csv",
+        behavior_multiplicity,
+        fieldnames=BEHAVIOR_MULTIPLICITY_FIELDS,
     )
     write_csv(output_dir / "matched_pairs.csv", pairs)
     write_csv(output_dir / "coverage.csv", coverage)
@@ -2987,6 +3014,12 @@ def main() -> None:
         "matched_behavior_usable_pairs": sum(
             int(row["pair_usable"])
             for row in matched_behavior_pairs
+        ),
+        "behavior_primary_binary_effect_rows": len(
+            behavior_binary_effects
+        ),
+        "behavior_multiplicity_families": len(
+            behavior_multiplicity
         ),
         "terminal_status": {row["terminal_status"]: row["count"] for row in status_rows},
         "pair_summary": pair_summary,
