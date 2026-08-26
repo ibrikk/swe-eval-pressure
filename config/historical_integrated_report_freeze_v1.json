@@ -1,0 +1,21 @@
+{
+  "freeze_version": "1.0",
+  "git_commit_at_report_freeze": "8deb11d7e6583d3eabe9a6d8d78f286c53523f63",
+  "input_freezes": {
+    "behavior_integration": {
+      "path": "/Users/ibrahim.khalilov/Documents/swe-eval-pressure-behavior/config/historical_semantic_behavior_integration_freeze_v1.json",
+      "sha256": "efb78754cbbc1544f2ec0175af396ca368d7ea9902d3f38812aafb4f9d95c580"
+    },
+    "semantic_final": {
+      "path": "/Users/ibrahim.khalilov/Documents/swe-eval-pressure-behavior/config/historical_semantic_final_freeze_v1.json",
+      "sha256": "6c449d9e624b85a66e2d13528167b62005b05ac2f8ff429d41f24995dc3b969a"
+    },
+    "semantic_matched": {
+      "path": "/Users/ibrahim.khalilov/Documents/swe-eval-pressure-behavior/config/historical_semantic_matched_inference_freeze_v1.json",
+      "sha256": "831325c4239c420043f196b07b1a282ac4d4870abd9c782840a9b697f88bf23a"
+    }
+  },
+  "report": "/Users/ibrahim.khalilov/Documents/swe-eval-pressure/analysis/semantic-multijudge-v1/historical-integrated-final-v1.html",
+  "report_sha256": "1d4c5efa3948ba28f64a0c6c529fefc5880ca74a29e56cdf5dcbc675d9d5084f",
+  "status": "frozen_final_historical_integrated_report"
+}
