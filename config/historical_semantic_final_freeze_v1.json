@@ -1,0 +1,33 @@
+{
+  "analysis_source_policy": "All historical semantic analyses must read final-repaired-llama-v1 only. Older pilot, dose, full-production, and recovery roots are provenance inputs only and are not analysis sources.",
+  "code_commit_at_freeze_ledger_creation": "d1a015178c180e29c72757f8dad53628f72e49fd",
+  "consensus_tree_sha256": "cb4a034d4bb1ce9b38d897e7ac3bc5a58dc00f4fad07cb8548830303920149bd",
+  "counts": {
+    "both_judges_missing_trajectories": 0,
+    "both_judges_valid_trajectories": 2761,
+    "censored_or_error": 24,
+    "consensus_agreement_fields": 13022,
+    "consensus_disagreement_fields": 783,
+    "consensus_missing_fields": 75,
+    "judge_jobs": 5552,
+    "missing_judge_jobs": 15,
+    "one_judge_missing_trajectories": 15,
+    "planned_trajectories": 2800,
+    "semantic_eligible_trajectories": 2776,
+    "valid_judge_jobs": 5537
+  },
+  "final_missingness_policy": {
+    "missing_is_not_negative": true,
+    "no_further_judge_calls": true,
+    "remaining_missing_jobs_are_terminal": true
+  },
+  "final_root": "/Users/ibrahim.khalilov/Documents/swe-eval-pressure/analysis/semantic-multijudge-v1/final-repaired-llama-v1",
+  "final_summary_sha256": "427161a6acb39215a0d9d54f52c33d3f2d1e52bf8cfafbd0acda0756a6587e50",
+  "freeze_ledger_version": "1.0",
+  "freeze_manifest": "/Users/ibrahim.khalilov/Documents/swe-eval-pressure/analysis/semantic-multijudge-v1/final-repaired-llama-v1/freeze_manifest.json",
+  "freeze_manifest_sha256": "bfcf5c05497ecc640d2d2f62b101f665392c984dbbe8763b3fbe7943564fda11",
+  "jobs_tree_sha256": "d9e084de38fb409579f0c44f02f30a50d8471674359a09aa6d8c1279e77f5124",
+  "missing_jobs_sha256": "25000aa85b44bc6478927dc3d31518d37c00b01dae67089e441723710d21e822",
+  "selection_ledger_sha256": "1ec12e01706da60f61c327cbad8e7060e172da314135f1c4b5d3f49c308cbfa0",
+  "status": "frozen_final_historical_semantic_universe"
+}
