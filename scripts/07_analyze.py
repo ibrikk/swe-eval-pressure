@@ -611,6 +611,100 @@ def observation_failed(content: str) -> bool:
 
 
 
+TEXT_BASH_BLOCK_RE = re.compile(
+    r"```mswea_bash_command\s*\n(.*?)\n```",
+    re.IGNORECASE | re.DOTALL,
+)
+
+
+def text_based_shell_calls(
+    step: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Backward-compatible Mini-SWE recovery for legacy tool metrics.
+
+    Canonical behavioral analysis uses extract_behavior_actions().
+    This function preserves the earlier main-branch analyzer behavior
+    for historical raw_tool_calls-style measurements and regression tests.
+    """
+    message = step.get("message", "")
+
+    if not isinstance(message, str):
+        message = "\n".join(
+            all_strings(message)
+        )
+
+    commands = [
+        match.strip()
+        for match in TEXT_BASH_BLOCK_RE.findall(
+            message
+        )
+        if match.strip()
+    ]
+
+    if not commands:
+        return []
+
+    observation = step.get(
+        "observation"
+    )
+
+    if observation in (None, ""):
+        observation_text = ""
+
+    elif isinstance(
+        observation,
+        str,
+    ):
+        observation_text = observation
+
+    else:
+        try:
+            observation_text = json.dumps(
+                observation,
+                ensure_ascii=False,
+                default=str,
+            )
+        except Exception:
+            observation_text = "\n".join(
+                all_strings(
+                    observation
+                )
+            )
+
+    step_id = str(
+        step.get("step_id")
+        or ""
+    )
+
+    recovered = []
+
+    for idx, command in enumerate(
+        commands,
+        start=1,
+    ):
+        recovered.append({
+            "call_id": (
+                f"text-{step_id}-{idx}"
+            ),
+            "name": "bash",
+            "category": "bash",
+            "command": command,
+            "path": "",
+            "arguments_text": command,
+            "observation": observation_text,
+            "failed": int(
+                bool(
+                    observation_text
+                )
+                and observation_failed(
+                    observation_text
+                )
+            ),
+        })
+
+    return recovered
+
+
 MSWEA_BASH_RE = re.compile(
     r"```mswea_bash_command\s*\n?(.*?)```",
     re.S | re.I,
@@ -933,7 +1027,18 @@ def extract_tools(trajectory: Any) -> tuple[list[dict[str, Any]], dict[str, Any]
     for step in steps:
         step_calls = step.get("tool_calls")
         if not isinstance(step_calls, list) or not step_calls:
+            recovered = text_based_shell_calls(
+                step
+            )
+
+            if recovered:
+                tool_bearing_turns += 1
+                calls.extend(
+                    recovered
+                )
+
             continue
+
         tool_bearing_turns += 1
         observations = observation_by_call(step)
         for call in step_calls:
@@ -1368,6 +1473,55 @@ def select_candidates(
     return selected, duplicate_rows, warnings
 
 
+def classify_agent_protocol_status(
+    profile: str,
+    status: str,
+    exc_type: str,
+    exc_message: str,
+    trajectory_path: Path | None,
+    result: dict[str, Any],
+    trajectory: Any,
+) -> tuple[str, str, str]:
+    """Exclude completed Mini-SWE trials with no recorded agent behavior.
+
+    A Harbor-completed Llama trajectory containing no agent/model step
+    is not a substantive coding outcome. Infrastructure/image failures
+    remain separately classified by terminal_status().
+    """
+    if (
+        profile == "llama"
+        and status == "completed"
+        and trajectory_path is not None
+        and result.get(
+            "agent_execution"
+        ) is not None
+        and result.get(
+            "agent_result"
+        ) is not None
+        and len(
+            agent_steps(
+                trajectory
+            )
+        ) == 0
+    ):
+        return (
+            "agent_protocol_error",
+            "NoRecordedAgentStep",
+            (
+                "Harbor marked the Mini-SWE trial completed, "
+                "but the recorded trajectory contains no "
+                "agent/model steps. Excluded from substantive "
+                "model outcomes."
+            ),
+        )
+
+    return (
+        status,
+        exc_type,
+        exc_message,
+    )
+
+
 def ingest_trial(
     project_root: Path,
     profile: str,
@@ -1431,7 +1585,22 @@ def ingest_trial(
             ) or 0
         ),
     )
-    status, exc_type, exc_message = terminal_status(result)
+    status, exc_type, exc_message = terminal_status(
+        result
+    )
+
+    status, exc_type, exc_message = (
+        classify_agent_protocol_status(
+            profile,
+            status,
+            exc_type,
+            exc_message,
+            trajectory_path,
+            result,
+            trajectory,
+        )
+    )
+
     verifier_result = result.get("verifier_result") or {}
     rewards = verifier_result.get("rewards", {}) or {}
     if status == "safety_refusal" and rewards.get("overall_pass") in {None, ""}:

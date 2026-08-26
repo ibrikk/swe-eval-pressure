@@ -1,0 +1,17 @@
+{
+  "version": "1.0",
+  "status": "frozen_before_resource_effect_estimation",
+  "adjudications": [
+    {
+      "profile": "llama",
+      "condition": "clean",
+      "base_task": "ea-10d4b446",
+      "planned_trial_name": "ea-10d4b446-clean-n",
+      "harbor_trial_name": "ea-10d4b446-clean-n__fcYYG73",
+      "exception_type": "NonZeroAgentExitCodeError",
+      "classification": "infrastructure_censored",
+      "reason": "Cause-level outcome-blind review found that Mini-SWE produced a substantive partial trajectory but terminated nonzero following a LiteLLM/model-routing failure. The run did not reach normal agent termination, so its verifier result is not used as a primary model outcome.",
+      "verifier_outcome_examined_for_adjudication": false
+    }
+  ]
+}
