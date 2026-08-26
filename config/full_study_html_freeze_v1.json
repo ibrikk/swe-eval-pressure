@@ -1,0 +1,53 @@
+{
+  "builder_sha256": "d3590a0c3444d2c165993bdb3336c30a7159d8de1708ecebc6b6dcad50ed7517",
+  "freeze_version": "1.0",
+  "human_facing_deliverable": "single standalone HTML",
+  "inputs": {
+    "embedded_resource_report": {
+      "path": "/Users/ibrahim.khalilov/Documents/swe-eval-pressure/analysis/resource/integrated-report-v1/index.html",
+      "sha256": "b7f633c55e060c50eff0959d783ee6efad1adf9ebd10e749845224084021e6cd"
+    },
+    "historical_report_freeze": {
+      "path": "/Users/ibrahim.khalilov/Documents/swe-eval-pressure-behavior/config/historical_integrated_report_freeze_v2.json",
+      "sha256": "60859ea9941fb210e1069734ee42348effcf49e4c92cb077168c1c8b13af0ece"
+    },
+    "publication_projection_freeze": {
+      "path": "/Users/ibrahim.khalilov/Documents/swe-eval-pressure-behavior/config/historical_publication_projection_freeze_v1.json",
+      "sha256": "45bfcf42c522cc9df3c2a94792ec6198f5739af07da40534dc361b56da0807b5"
+    },
+    "resource_semantic_freeze": {
+      "path": "/Users/ibrahim.khalilov/Documents/swe-eval-pressure-behavior/config/resource_semantic_analysis_freeze_v1.1.json",
+      "sha256": "15682fa11f79cb7da794357f2a3b9a67b3493e54f329a821c4c61b7abfae0527"
+    },
+    "temporal_result_freeze": {
+      "path": "/Users/ibrahim.khalilov/Documents/swe-eval-pressure-behavior/config/residual_influence_temporal_result_freeze_v1.json",
+      "sha256": "4ffe62bac91fd402a959f47cec3c30fb5f6386a7dd48a1579490e57ad41acbb3"
+    }
+  },
+  "interpretation_boundaries": {
+    "main_positive_result": "placement-dependent defensive salience",
+    "not_supported": [
+      "robust pressure-induced increase in evaluation recognition",
+      "robust persistent source-specific post-removal displacement"
+    ],
+    "post_treatment_associations_are_causal": false,
+    "temporal_null_is_equivalence": false
+  },
+  "paper_level_results": {
+    "evaluation_recognition_corrected": 0,
+    "global_holm_significant": 24,
+    "historical_planned": 2800,
+    "historical_substantive": 2776,
+    "resource_codex_primary_delta_pp": -20.0,
+    "semantic_tests": 120,
+    "temporal_endpoints": 6,
+    "temporal_holm_significant": 0,
+    "temporal_primary_trajectories": 32,
+    "temporal_task_clusters": 21
+  },
+  "report": "/Users/ibrahim.khalilov/Documents/swe-eval-pressure/analysis/semantic-multijudge-v1/swe-evalpressure-full-study-v1.html",
+  "report_bytes": 3019684,
+  "report_sha256": "b7e1f722d7e2dcd29774941b9e8c3f4c22eea206869bcc1fa35db2e2c31cf9f4",
+  "source_branch_commit": "dc6f1636cc643847778c40666e538c74be791582",
+  "status": "frozen_self_contained_full_study_html"
+}
