@@ -934,6 +934,57 @@ Do **not** launch the three shards simultaneously. The concurrency preset alread
 
 With a multi-key pool, rate-limited runner shards are automatically resumed under an alternate key. With one key, or if every key is exhausted, reduce concurrency or use the repository resume wrapper after the quota resets; do not repeatedly relaunch entire jobs.
 
+### Adaptive 5M Llama spillover
+
+For upgraded 5M TPM keys, `scale-5m-adaptive` keeps Claude/Fable/Codex at the
+normal high-throughput starting allocation while treating Llama as elastic
+background work:
+
+```bash
+./lab.sh matrix full \
+  --concurrency-preset scale-5m-adaptive \
+  --shard-size 30 \
+  --shard-index 1 \
+  --dry-run
+```
+
+Llama starts at **one active trial globally**, even when `LITE_LLM_KEYS`
+contains several keys. It runs small complete-base-task batches and rotates the
+selected key between batches. After a clean batch it increases global Llama
+concurrency by one; after an observed HTTP/rate-limit event it halves the
+concurrency, waits, and resumes only the latest rate-limited trials. Defaults:
+
+```text
+ADAPTIVE_LLAMA_MIN=1
+ADAPTIVE_LLAMA_MAX=12
+ADAPTIVE_LLAMA_STEP=1
+ADAPTIVE_LLAMA_BATCH_BASE_TASKS=2
+ADAPTIVE_LLAMA_COOLDOWN_SECONDS=30
+```
+
+The gateway does not expose an authoritative live remaining-TPM counter to the
+runner, so this is feedback-controlled AIMD scheduling rather than a claim of
+measuring exact unused TPM. Scheduling changes do not change task contents,
+model/scaffold, verifier, or within-base-task variant families. Every adaptive
+Llama Harbor job records its actual concurrency in `run_metadata.json`, and the
+controller writes `llama_decisions.tsv` under its results directory.
+
+For an independent replication, keep its outputs separate from the historical
+cohort by overriding `RESULTS_ROOT` for the launch:
+
+```bash
+RESULTS_ROOT="$PWD/results-replication-20260826" \
+  ./lab.sh matrix full \
+  --concurrency-preset scale-5m-adaptive \
+  --shard-size 30 \
+  --shard-index 1
+```
+
+`RESULTS_ROOT` is an execution/output location only; the prepared dataset and
+study manifest still come from this checkout. The analyzer can later read the
+replication via `--results-dir` or a symlink under the standard `results/`
+layout.
+
 ### Interrupted or infrastructure-censored runs
 
 Use `./lab.sh resume` instead of calling `harbor job resume` directly. Always preview a resume first:

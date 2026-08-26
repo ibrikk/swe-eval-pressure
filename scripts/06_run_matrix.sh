@@ -22,6 +22,7 @@ Usage:
   ./lab.sh matrix <mode> --concurrency-preset serial [run/shard options]
   ./lab.sh matrix <mode> --concurrency-preset scale-200k [run/shard options]
   ./lab.sh matrix <mode> --concurrency-preset scale-5m [run/shard options]
+  ./lab.sh matrix <mode> --concurrency-preset scale-5m-adaptive [run/shard options]
   ./lab.sh matrix <mode> --concurrency-preset custom [run/shard options]
   ./lab.sh matrix <mode> --dry-run [options]
 
@@ -29,6 +30,7 @@ Concurrency presets:
   serial      1/1/1/1 for claude/fable/codex/llama.
   scale-200k  5/4/4/1, the existing empirically tested starting point for a 200k TPM key.
   scale-5m    20/16/16/4, a conservative high-throughput starting point for a confirmed 5M TPM key.
+  scale-5m-adaptive  fixed Claude/Fable/Codex plus globally elastic Llama (starts at 1; AIMD feedback).
   custom      CLAUDE_CONCURRENCY/FABLE_CONCURRENCY/CODEX_CONCURRENCY/LLAMA_CONCURRENCY.
 
 Always confirm the gateway key's TPM limit before selecting a quota-specific preset.
@@ -39,6 +41,16 @@ EOF
       PASSTHRU+=("$1"); shift ;;
   esac
 done
+
+
+if [[ "$PRESET" == "scale-5m-adaptive" ]]; then
+  adaptive_args=("$MODE")
+  [[ "$DRY_RUN" == 1 ]] && adaptive_args+=(--dry-run)
+  if [[ -n "${PASSTHRU[*]-}" ]]; then
+    adaptive_args+=("${PASSTHRU[@]}")
+  fi
+  exec bash "$SCRIPT_DIR/06_run_matrix_adaptive.sh" "${adaptive_args[@]}"
+fi
 
 case "$PRESET" in
   serial)
