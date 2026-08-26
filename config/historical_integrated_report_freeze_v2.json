@@ -1,0 +1,44 @@
+{
+  "builder_sha256": "66133eb3d50883c722f73732944ad4dbfee7a20c5697e8e46d34ae3d92c77594",
+  "freeze_version": "2.0",
+  "git_commit_at_report_freeze": "7a20c1d8032ca1ab1dda4a0a6e3a318298c927f0",
+  "input_freezes": {
+    "historical_semantic_behavior": {
+      "path": "/Users/ibrahim.khalilov/Documents/swe-eval-pressure-behavior/config/historical_semantic_behavior_integration_freeze_v1.json",
+      "sha256": "efb78754cbbc1544f2ec0175af396ca368d7ea9902d3f38812aafb4f9d95c580"
+    },
+    "historical_semantic_final": {
+      "path": "/Users/ibrahim.khalilov/Documents/swe-eval-pressure-behavior/config/historical_semantic_final_freeze_v1.json",
+      "sha256": "6c449d9e624b85a66e2d13528167b62005b05ac2f8ff429d41f24995dc3b969a"
+    },
+    "historical_semantic_matched": {
+      "path": "/Users/ibrahim.khalilov/Documents/swe-eval-pressure-behavior/config/historical_semantic_matched_inference_freeze_v1.json",
+      "sha256": "831325c4239c420043f196b07b1a282ac4d4870abd9c782840a9b697f88bf23a"
+    },
+    "post_removal_temporal": {
+      "path": "/Users/ibrahim.khalilov/Documents/swe-eval-pressure-behavior/config/residual_influence_temporal_result_freeze_v1.json",
+      "sha256": "4ffe62bac91fd402a959f47cec3c30fb5f6386a7dd48a1579490e57ad41acbb3"
+    }
+  },
+  "interpretation_boundary": {
+    "main_semantic_result": "multiplicity-robust defensive salience with strong placement dependence",
+    "temporal_result": "no statistically robust evidence of source-specific persistent post-removal behavioral displacement",
+    "temporal_result_is_not": [
+      "equivalence evidence",
+      "proof of zero residual influence",
+      "causal effect of cue removal"
+    ]
+  },
+  "paper_level_results": {
+    "corrected_evaluation_recognition_effects": 0,
+    "global_holm_significant_semantic_contrasts": 24,
+    "global_semantic_contrasts": 120,
+    "temporal_holm_significant": 0,
+    "temporal_primary_endpoints": 6,
+    "temporal_primary_trajectories": 32,
+    "temporal_task_clusters": 21
+  },
+  "report": "/Users/ibrahim.khalilov/Documents/swe-eval-pressure/analysis/semantic-multijudge-v1/historical-integrated-final-v2.html",
+  "report_sha256": "f8c0028d9dd9e68274621804688283d17d3dc8075fe161cdfeeff455a6d32875",
+  "status": "frozen_final_historical_integrated_report_v2"
+}
