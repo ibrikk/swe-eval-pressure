@@ -1,0 +1,42 @@
+{
+  "bulk_index_version": "1.0",
+  "cache_policy": {
+    "inherited_roots_are_read_only": true,
+    "new_artifacts_written_only_to_full_root": true,
+    "no_retry_beyond_frozen_budget": true,
+    "no_third_judge_tiebreak": true,
+    "terminal_missing_remains_missing": true
+  },
+  "censored_or_error": 24,
+  "core_judge_jobs": 5552,
+  "execution_note": "Final historical semantic universe using strictly frozen repaired Llama cohort.",
+  "expected_per_profile": {
+    "censored_or_error": 6,
+    "planned": 700,
+    "semantic_eligible": 694
+  },
+  "full_spec_version": "1.0",
+  "historical_universe": "repaired_llama_v1",
+  "planned_trajectories": 2800,
+  "primary_panel_size": 2,
+  "request_policy": {
+    "max_attempts_per_job": 3,
+    "max_tokens": 8192,
+    "response_format": {
+      "type": "json_object"
+    },
+    "retry_delays_seconds": [
+      0.0,
+      2.0,
+      5.0
+    ],
+    "temperature": 0,
+    "timeout_seconds": 90
+  },
+  "rubric_version": "1.0",
+  "selection_status": "frozen_historical_semantic_universe",
+  "semantic_eligible_trajectories": 2776,
+  "semantic_schema_version": "1.1",
+  "semantic_view_version": "2.1",
+  "source_manifest_sha256": "5134af2a1d5b8582d238e7a9c5e375cb392edcbb29abf5ab7d8269b7753d34e4"
+}
