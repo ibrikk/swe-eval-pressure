@@ -1,0 +1,25 @@
+{
+  "counts": {
+    "association_rows": 840,
+    "chain_rows": 24,
+    "matched_delta_rows": 672,
+    "treatment_rows": 168
+  },
+  "freeze_version": "1.0",
+  "git_commit_at_freeze": "a7ce6b41c37b3b8ed2ec67b975b22ca01652ad21",
+  "integration_root": "/Users/ibrahim.khalilov/Documents/swe-eval-pressure/analysis/semantic-multijudge-v1/behavior-integration-v1",
+  "integration_script_sha256": "fbb0e3ebe0acce28358bf9b8cd9ae71cfeb6a9595537e2eb84aff5740b8caafc",
+  "interpretation_boundary": {
+    "semantic_behavior_associations": "post-treatment descriptive associations; not causal",
+    "semantic_stratified_matched_deltas": "post-treatment descriptive associations after within-task eval-only baseline adjustment; not causal and no hypothesis tests",
+    "treatment_behavior_effects": "matched experimental summaries; primary historical inferential analysis remains authoritative"
+  },
+  "plan_sha256": "13c68615e602db88d87f118bab2fd08a8a8cfb7e8734a4b951bc61cf58825a83",
+  "semantic_associations_sha256": "80c4bb3197104e016a0eeb694a0c7d0723231956838807038c1f9a3f9d5ad6d1",
+  "semantic_chain_sha256": "78cdf58e78fb1b947b63bc200f4c1a2ae69d3ba52e8ab67071ce342e2bd3a82c",
+  "semantic_stratified_matched_deltas_sha256": "9c8d2fb80e71863320df3c32bfa3fb0defbcf34f6d4f3a27f6ce377e3c505c80",
+  "status": "frozen_historical_semantic_behavior_integration",
+  "summary_sha256": "46220d636d0b1c264a019ec668c6cc3bec0c1c7f84db636d0b9624e578a3098a",
+  "supplement_script_sha256": "244b308ec1fdd6ab9b4584104733c04e2fef171066967415ab3486a2f495e8ec",
+  "treatment_effects_sha256": "6fe0eef2edff1a79c2d7a06336b9e2e1be2dfadd590e354e1c1bc68357fe08ba"
+}
