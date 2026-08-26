@@ -1,0 +1,126 @@
+{
+  "core_judge_jobs": 20,
+  "pilot_spec_version": "1.0",
+  "primary_judges": [
+    {
+      "family": "deepseek",
+      "model": "azure_ai/DeepSeek-V4-Pro"
+    },
+    {
+      "family": "gemini",
+      "model": "gemini/gemini-3.6-flash"
+    }
+  ],
+  "profile": "llama",
+  "purpose": "Post-repair serialization and semantic-production validation for genuine historical Llama trajectories.",
+  "rubric_version": "1.0",
+  "selection_method": "one Llama trajectory per historical treatment cell; minimum sha256('llama|trial_name')",
+  "selection_status": "frozen_before_semantic_outcomes",
+  "semantic_schema_version": "1.1",
+  "semantic_view_version": "2.1",
+  "source_manifest": "/Users/ibrahim.khalilov/Documents/swe-eval-pressure/analysis/semantic-multijudge-v1/manifests/historical-stage-a-repaired-llama-v1.json",
+  "source_manifest_sha256": "5134af2a1d5b8582d238e7a9c5e375cb392edcbb29abf5ab7d8269b7753d34e4",
+  "trajectory_count": 10,
+  "trials": [
+    {
+      "condition": "clean",
+      "placement": "none",
+      "pressure_type": "none",
+      "profile": "llama",
+      "selection_hash": "045e7c23a554e68ef428bd2eb30c7dc31a7fa09b55c912ce2197c6d1d684b2ce",
+      "trajectory_hash": "db46f7ab759ea0535f7ece0fe0418bf431f96ce2a6b4685065e46f4a33c46da2",
+      "trajectory_path": "/Users/ibrahim.khalilov/Documents/swe-eval-pressure-llama-audit/results/full/swe-eval-pressure-full-llama-20260825-132138/swe-eval-pressure-full-llama-20260825-132138/ea-4fd118a1-clean-n__eQkwwKp/agent/trajectory.json",
+      "trial_name": "ea-4fd118a1-clean-n__eQkwwKp"
+    },
+    {
+      "condition": "eval_only",
+      "placement": "root",
+      "pressure_type": "none",
+      "profile": "llama",
+      "selection_hash": "0362fb1dad2f72d9df65299034b374ddd2e307c8bccd1335e28876574b3f7476",
+      "trajectory_hash": "8e847168e91f6010d67cfa35cea5fa43ecf94f966ec0950ba1019c51cc4dc856",
+      "trajectory_path": "/Users/ibrahim.khalilov/Documents/swe-eval-pressure-llama-audit/results/full/swe-eval-pressure-full-llama-20260825-132138/swe-eval-pressure-full-llama-20260825-132138/ea-ed98812f-eval-root__yu4UJDk/agent/trajectory.json",
+      "trial_name": "ea-ed98812f-eval-root__yu4UJDk"
+    },
+    {
+      "condition": "eval_only",
+      "placement": "scaffold",
+      "pressure_type": "none",
+      "profile": "llama",
+      "selection_hash": "06a9ce13d641fa3284b438e378f8cd2bd2b9e53a3287a824cd553e10ece60353",
+      "trajectory_hash": "2306f241ec181c87eb660c2b2f36a87d816e2083cffc979df19c4a52a56f1d94",
+      "trajectory_path": "/Users/ibrahim.khalilov/Documents/swe-eval-pressure-llama-audit/results/full/swe-eval-pressure-full-llama-20260825-132138/swe-eval-pressure-full-llama-20260825-132138/ea-10d4b45b-eval-scaf__uHsUzTG/agent/trajectory.json",
+      "trial_name": "ea-10d4b45b-eval-scaf__uHsUzTG"
+    },
+    {
+      "condition": "eval_only",
+      "placement": "source",
+      "pressure_type": "none",
+      "profile": "llama",
+      "selection_hash": "0033e1a5498539fd5a823264684e3a8c72e3ec8423715648fe690e0280feac1c",
+      "trajectory_hash": "3ce1461ac1029f77cb2ae329264ae519913df4ba96fa8c82c3ef2528f70a58ce",
+      "trajectory_path": "/Users/ibrahim.khalilov/Documents/swe-eval-pressure-llama-audit/results/full/swe-eval-pressure-full-llama-20260825-132138/swe-eval-pressure-full-llama-20260825-132138/ea-8265afc1-eval-src__cDy79RM/agent/trajectory.json",
+      "trial_name": "ea-8265afc1-eval-src__cDy79RM"
+    },
+    {
+      "condition": "eval_financial",
+      "placement": "root",
+      "pressure_type": "financial",
+      "profile": "llama",
+      "selection_hash": "0466b0811aef25001e9264d6534eee39390d78422ebc67d5d25e6d904adfa076",
+      "trajectory_hash": "cba27ad51a9e9d6e350bc06e1863c6f500ff34ca074366c9205c96f26b166352",
+      "trajectory_path": "/Users/ibrahim.khalilov/Documents/swe-eval-pressure-llama-audit/results/full/swe-eval-pressure-full-llama-20260825-132138/swe-eval-pressure-full-llama-20260825-132138/ea-ed988134-eval-fin-root__9grVShB/agent/trajectory.json",
+      "trial_name": "ea-ed988134-eval-fin-root__9grVShB"
+    },
+    {
+      "condition": "eval_financial",
+      "placement": "scaffold",
+      "pressure_type": "financial",
+      "profile": "llama",
+      "selection_hash": "019a1e07952d5aa45553b8827673d2d013326d299b378698e49696098430446b",
+      "trajectory_hash": "d8b29e29788ecdffab6221c47bb76722d62080908136ffbd6b031c336437f453",
+      "trajectory_path": "/Users/ibrahim.khalilov/Documents/swe-eval-pressure-llama-audit/results/full/swe-eval-pressure-full-llama-20260825-132138/swe-eval-pressure-full-llama-20260825-132138/ea-8265afc2-eval-fin-scaf__B9JuyeN/agent/trajectory.json",
+      "trial_name": "ea-8265afc2-eval-fin-scaf__B9JuyeN"
+    },
+    {
+      "condition": "eval_financial",
+      "placement": "source",
+      "pressure_type": "financial",
+      "profile": "llama",
+      "selection_hash": "08bf435e8232e4b99b5202be6fac92d46cbb3241c7166686dd6213740c33738b",
+      "trajectory_hash": "76c28acb6bc374ea94d5931f796f6a543f2b0d5ad32fe2f80063c66a2af4ce5a",
+      "trajectory_path": "/Users/ibrahim.khalilov/Documents/swe-eval-pressure-llama-audit/results/full/swe-eval-pressure-full-llama-20260825-132138/swe-eval-pressure-full-llama-20260825-132138/ea-ed988134-eval-fin-src__qGLZ7D2/agent/trajectory.json",
+      "trial_name": "ea-ed988134-eval-fin-src__qGLZ7D2"
+    },
+    {
+      "condition": "eval_self_preservation",
+      "placement": "root",
+      "pressure_type": "self_preservation",
+      "profile": "llama",
+      "selection_hash": "00df9e2412749159fe88b5ad2fba0466edbaa5cf784f8e121bb7ccd1257eab26",
+      "trajectory_hash": "3fd6d3f055ac700602be067b529ee10b4a1596ad0d213d1a6a68c935d63538ae",
+      "trajectory_path": "/Users/ibrahim.khalilov/Documents/swe-eval-pressure-llama-audit/results/full/swe-eval-pressure-full-llama-20260825-132138/swe-eval-pressure-full-llama-20260825-132138/ea-10d4b434-eval-self-root__SDzHgVt/agent/trajectory.json",
+      "trial_name": "ea-10d4b434-eval-self-root__SDzHgVt"
+    },
+    {
+      "condition": "eval_self_preservation",
+      "placement": "scaffold",
+      "pressure_type": "self_preservation",
+      "profile": "llama",
+      "selection_hash": "023446a7119eb918f2bd6e8b0c13cb7afaab943b6fa4c52a94c316a495f35187",
+      "trajectory_hash": "933143ebd4b7fec76a0ca949438276d02010166cb1de1767ec89d6dd82a0e580",
+      "trajectory_path": "/Users/ibrahim.khalilov/Documents/swe-eval-pressure-llama-audit/results/full/swe-eval-pressure-full-llama-20260825-132138/swe-eval-pressure-full-llama-20260825-132138/ea-10d4b43e-eval-self-scaf__kQpRfzj/agent/trajectory.json",
+      "trial_name": "ea-10d4b43e-eval-self-scaf__kQpRfzj"
+    },
+    {
+      "condition": "eval_self_preservation",
+      "placement": "source",
+      "pressure_type": "self_preservation",
+      "profile": "llama",
+      "selection_hash": "08b3cf36573ecb2662a55c1060e06b622e108f52dd35bdee3cb6d674f85cee3f",
+      "trajectory_hash": "8984124fbdb4e47b483352b4094bf05a2cf86514ce7bdc178524afe1e4d5aff1",
+      "trajectory_path": "/Users/ibrahim.khalilov/Documents/swe-eval-pressure-llama-audit/results/full/swe-eval-pressure-full-llama-20260825-132138/swe-eval-pressure-full-llama-20260825-132138/ea-10d4b428-eval-self-src__Y9WLuRU/agent/trajectory.json",
+      "trial_name": "ea-10d4b428-eval-self-src__Y9WLuRU"
+    }
+  ]
+}
