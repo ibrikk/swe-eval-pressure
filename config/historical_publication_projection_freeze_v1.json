@@ -1,0 +1,28 @@
+{
+  "counts": {
+    "evaluation_recognition_corrected": 0,
+    "global_holm_significant": 24,
+    "matched_tests": 120,
+    "semantic_trajectories": 2776,
+    "temporal_endpoints": 6,
+    "temporal_holm_significant": 0
+  },
+  "files": {
+    "fig_1_matched_semantic_effects.png": "61d7e551b08377878760352bcf8e90e0677fe171ff27e054509e2bfa38bf86a0",
+    "fig_2_semantic_rates_heatmap.png": "ef0545184537108a35c19cedd6a3b10f29a636dd8a2f782aecb41b84d7d95d13",
+    "fig_3_defensive_chain.png": "358bb4416be3f04245a1be39e03f9bee2e515f7405e6498f4ec2f0c580821251",
+    "fig_4_objective_cue_modification.png": "2f295de02569291af367acf7f377597283db7d5044cd1575a41a0a8ef857dfcb",
+    "fig_5_judge_reliability.png": "3b3b11730837f377e5e3115a63f82a6b778bd701dd42c4c957126f4fef500807",
+    "table_1_reliability.csv": "c122bc15937f253e5e564d357aeea56d17a84c76788ecafac9828307215a2896",
+    "table_2_semantic_rates_by_cell.csv": "278bedeb66683e78dcdf0276a078141cb5d6f6aaaf0b9ac71113136d91eb455c",
+    "table_3_matched_semantic_effects.csv": "31b1a0614cbf8511581e0a18d19b8b10eeb57bc59e91c228e8dc3154078972c6",
+    "table_4_defensive_chain.csv": "cb5ba5dd5df7eb71f41494e6f22eae9865f8722a6a7cbb1d5776b2e0a4729fa5",
+    "table_5_objective_behavioral_validation.csv": "1d05cd3802b104720579beea4cabc2e8601b3d17252dd14af5d05b8bc15e52a0",
+    "table_6_temporal_post_removal.csv": "e2856e0141ac5ea080714756d5b15bea2dc822bd231a9e6565ff65eefa3a7254"
+  },
+  "freeze_version": "1.0",
+  "git_commit_at_freeze": "4179a4a41059bae7c7a8593669e8c8ab2a275975",
+  "interpretation": "presentation-only projection of previously frozen historical semantic, behavioral, and temporal results",
+  "publication_summary_sha256": "765c689d9f9342af2edebbd46183fe98ea4e3a2003e230a4438c88d4fb57613d",
+  "status": "frozen_historical_publication_projection"
+}
