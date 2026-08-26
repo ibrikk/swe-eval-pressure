@@ -16,6 +16,7 @@ dev = [
     "pytest>=8.4,<9",
 ]
 inference = [
+    "matplotlib>=3.10,<4",
     "pandas>=3.0.5",
     "scipy>=1.18.1",
     "statsmodels>=0.14.6",
