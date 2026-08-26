@@ -1,0 +1,26 @@
+{
+  "counts": {
+    "holm_significant": 0,
+    "primary_endpoints": 6,
+    "primary_task_clusters": 21,
+    "primary_trajectories": 32
+  },
+  "freeze_version": "1.0",
+  "git_commit_at_freeze": "1a770888a4a54d712a1eb09089b03cd94b365e5b",
+  "interpretation": "post-treatment exploratory temporal analysis; not causal and not an equivalence test",
+  "primary_claim": "no statistically robust evidence of source-specific persistent post-removal behavioral displacement",
+  "prohibited_claims": [
+    "proved no residual effect",
+    "proved behavioral equivalence",
+    "proved cue removal restores untreated behavior"
+  ],
+  "sha256": {
+    "event_aligned_rows": "f343a89c9da3f0c3316ce131b685536b55592d69617fe39d4c030704801e8bfb",
+    "event_audit": "3a38e5ef937a5f1b4c009f335eb45e210975ac75191fec1d6be4f456fde7d22e",
+    "plan": "3f2596f3bbc22ad8a38038238d9a6738350b7770fedadd91525302cce7f85ab9",
+    "primary_inference": "07b281ee167ae306afc8e617bb7d77a09b997735882e4b15e201b40385a4b2c4",
+    "summary": "edabb5186656de20f84d275d9c594399ad22992d0303374a9f631fa4bb54fee0",
+    "supporting_sensitivity": "1cd5a5ece72d31bdeacfcc55888d0e0151c23b25ff1e54bcb440007316f97f42"
+  },
+  "status": "frozen_exploratory_temporal_result"
+}
