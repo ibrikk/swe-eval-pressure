@@ -1,0 +1,8 @@
+# Repaired historical Llama full-study infrastructure-censoring allowlist v1
+# Derived outcome-independently from persistent ImageBuildError cells after frozen retry policy.
+ea-10d4b434-eval-fin-src
+ea-10d4b434-eval-self-src
+ea-10d4b434-eval-src
+ea-8265afba-eval-fin-src
+ea-8265afba-eval-self-src
+ea-8265afba-eval-src

@@ -1,0 +1,115 @@
+{
+  "schema_version": "1.0",
+  "created_at_utc": "2026-08-26T00:46:35.904976+00:00",
+  "study": "historical_full_llama_repaired_20260825",
+  "status": "strict_canonical_cohort_frozen",
+  "analysis_schema_version": "2.2",
+  "semantic_judging_performed": false,
+  "planned_trajectories": 700,
+  "canonical_trajectories": 700,
+  "substantive_usable": 694,
+  "infrastructure_censored": 6,
+  "missing": 0,
+  "terminal_status": {
+    "completed": 694,
+    "environment_error": 6
+  },
+  "persistent_censored_cells": [
+    "ea-10d4b434-eval-fin-src",
+    "ea-10d4b434-eval-self-src",
+    "ea-10d4b434-eval-src",
+    "ea-8265afba-eval-fin-src",
+    "ea-8265afba-eval-self-src",
+    "ea-8265afba-eval-src"
+  ],
+  "persistent_censoring_class": "ImageBuildError",
+  "selected_source_counts": {
+    "main": 693,
+    "repair1": 4,
+    "repair2": 3
+  },
+  "rerun_identity_count": 7,
+  "retry_policy": {
+    "original_transient_repair_cells": 4,
+    "outcome_blind_nonzero_adjudicated_cells": 3,
+    "additional_retry_attempts_for_adjudicated_cells": 1,
+    "further_retries_allowed": false
+  },
+  "strict_reconstruction": true,
+  "input_hashes": {
+    "full_manifest": {
+      "path": "/Users/ibrahim.khalilov/Documents/swe-eval-pressure-llama-audit/generated/full/llama/manifest.json",
+      "sha256": "ddad46bec5ff239b48b0036ee772b864f0c03ff7fd670d810478614684335f58"
+    },
+    "agent_config": {
+      "path": "/Users/ibrahim.khalilov/Documents/swe-eval-pressure-llama-audit/config/mswea_rf_llama.yaml",
+      "sha256": "627ebf17717801a47c7591979df5eb153e84c9031500f28769183e38efe7faf1"
+    },
+    "analyzer": {
+      "path": "/Users/ibrahim.khalilov/Documents/swe-eval-pressure-llama-audit/scripts/07_analyze.py",
+      "sha256": "eb1b8df6b20df16193870e76bfc20bbb03c221915ebda1223bd4b97d269cd19a"
+    },
+    "censoring_allowlist": {
+      "path": "/Users/ibrahim.khalilov/Documents/swe-eval-pressure-llama-audit/config/llama_repaired_censored6_v1.txt",
+      "sha256": "76ae8cf0caf9fd44849c2f288d90a960e4c26be09f4f900541f439fd3701221f"
+    },
+    "agent_error_adjudication": {
+      "path": "/Users/ibrahim.khalilov/Documents/swe-eval-pressure-llama-audit/config/llama_repaired_agent_error_adjudication_v1.json",
+      "sha256": "d332ec208f9415bcbc73ae82122d657301681fcca3f046b84df4937552f6019f"
+    },
+    "main_run_metadata": {
+      "path": "/Users/ibrahim.khalilov/Documents/swe-eval-pressure-llama-audit/results/full/swe-eval-pressure-full-llama-20260825-132138/run_metadata.json",
+      "sha256": "4ad539855cfe1a6ba9e69909265f25de15ad757940d1be2970994224bdcafc90"
+    },
+    "repair1_run_metadata": {
+      "path": "/Users/ibrahim.khalilov/Documents/swe-eval-pressure-llama-audit/results/full/swe-eval-pressure-full-llama-key-shard-20260825-195709/run_metadata.json",
+      "sha256": "ecd55547f0d1860a82df2306f01c41550de019140c8e72a988d65711b01972f4"
+    },
+    "repair2_run_metadata": {
+      "path": "/Users/ibrahim.khalilov/Documents/swe-eval-pressure-llama-audit/results/full/swe-eval-pressure-full-llama-key-shard-20260825-203221/run_metadata.json",
+      "sha256": "6b84b05410efa30d615529bda7be752e6f4ba23eb41a2000e18e6d3f25f184f7"
+    },
+    "main_dataset_manifest": {
+      "path": "/Users/ibrahim.khalilov/Documents/swe-eval-pressure-llama-audit/results/full/swe-eval-pressure-full-llama-20260825-132138/dataset_manifest.json",
+      "sha256": "ddad46bec5ff239b48b0036ee772b864f0c03ff7fd670d810478614684335f58"
+    },
+    "repair1_dataset_manifest": {
+      "path": "/Users/ibrahim.khalilov/Documents/swe-eval-pressure-llama-audit/results/full/swe-eval-pressure-full-llama-key-shard-20260825-195709/dataset_manifest.json",
+      "sha256": "88918dd2b66320cf13ddbe232110cd9a401f6cb062b22b1c4a1efbb0b8387af0"
+    },
+    "repair2_dataset_manifest": {
+      "path": "/Users/ibrahim.khalilov/Documents/swe-eval-pressure-llama-audit/results/full/swe-eval-pressure-full-llama-key-shard-20260825-203221/dataset_manifest.json",
+      "sha256": "b114e7bce621058014533700ef11512f7c9cbd188cce2101462509bbb17d55d1"
+    },
+    "main_study_manifest": {
+      "path": "/Users/ibrahim.khalilov/Documents/swe-eval-pressure-llama-audit/results/full/swe-eval-pressure-full-llama-20260825-132138/study_manifest.json",
+      "sha256": "ddad46bec5ff239b48b0036ee772b864f0c03ff7fd670d810478614684335f58"
+    },
+    "repair1_study_manifest": {
+      "path": "/Users/ibrahim.khalilov/Documents/swe-eval-pressure-llama-audit/results/full/swe-eval-pressure-full-llama-key-shard-20260825-195709/study_manifest.json",
+      "sha256": "ddad46bec5ff239b48b0036ee772b864f0c03ff7fd670d810478614684335f58"
+    },
+    "repair2_study_manifest": {
+      "path": "/Users/ibrahim.khalilov/Documents/swe-eval-pressure-llama-audit/results/full/swe-eval-pressure-full-llama-key-shard-20260825-203221/study_manifest.json",
+      "sha256": "ddad46bec5ff239b48b0036ee772b864f0c03ff7fd670d810478614684335f58"
+    }
+  },
+  "canonical_output_hashes": {
+    "awareness.csv": "8c13ecc43188d96bd91fffba1140477205466b2e1b0fe0ce7c3453c11c081d70",
+    "coverage.csv": "ad4a8f6973ef25e67ae31506a47f27c292bd57b2791187dbc7a502e667db68f9",
+    "duplicates.csv": "8aeb5a9dd786115ea5e24a90b613188e1827fd02ea6f54ece07d5d91f7fa768e",
+    "external_lookup.csv": "5d26ec8c8114b60a4badfcf9c0b58552611eefd926b05142e86cfc6eb7e03388",
+    "matched_pair_summary.csv": "4fe63b0bade154272463d74f43b7443ced3529e6841298824ac31909fe777868",
+    "matched_pairs.csv": "29bd84f79bd6560db90049ef2098c68fb939016999fda7b765f83b21768587e7",
+    "report.md": "15167c8dc4bb7b38c30a3839a229986ceb5f21a6b754d0e5bc65b96c0a5de77c",
+    "summary.json": "24a34925ea6f877204f8fdbe124af35e532f427086053117864c3fb61a80c895",
+    "terminal_status.csv": "ebddf347cf0c2052615f0f8d8c705c066aac8e67f4ec183c9b744e0bf6c76c70",
+    "tool_usage.csv": "0073eaea94035d9e40d3787afd9ba458ca0a14791342f9f23ea3bfdead4796b4",
+    "treatment_delivery.csv": "616f3ecd61945d71878d97f1663f0ada947aaf3491a52815e4dd9ad08efe3837",
+    "trials.csv": "f29b7ded992ee18a5f2d244b3eafdc3e38695a67f952d2b49e25c468d08a9846",
+    "trials.json": "1aa4bb4914b41f1a6d1004542a43a230a9508937241bcba76c7e075d1d450fed"
+  },
+  "canonical_output_ledger_sha256": "d221e95fcfa62d45898a6bee14e73d865798fcd0ef6efb1cae4c18c28f8bd8d9",
+  "network_calls_for_freeze": 0,
+  "judge_calls_for_freeze": 0
+}
