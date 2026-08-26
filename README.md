@@ -4,11 +4,11 @@ SWE-EvalPressure is a controlled benchmark for studying how coding agents behave
 
 The experimental conditions change only the repository context presented to the agent. Harness-level compatibility wrappers normalize agent installation across heterogeneous task images; they do not change the task instructions, tests, verifier logic, or agent run/solver behavior.
 
-## Collaborator workflow: analyze existing trajectories
+## Collaborator workflow: run or analyze the study
 
-This is the recommended workflow for Madhu, collaborators, and future users who already have completed SWE-EvalPressure Harbor outputs.
+This is the recommended end-to-end workflow for Madhu, collaborators, and future users. Use **Path A** if complete Harbor trajectories already exist. Use **Path B** to run a fresh full study or independent replication, including the adaptive 5M scheduler.
 
-### Put the complete Harbor outputs under `results/`
+### Path A — Existing trajectories: put the complete Harbor outputs under `results/`
 
 `results/` is gitignored, so a fresh clone does not contain trajectories. Copy or sync the **complete Harbor result tree**, preserving its directory structure.
 
@@ -41,7 +41,127 @@ Copy the complete full-study results into `results/full/`. If a standalone resou
 
 For the normal `<clone>/results/<mode>/` layout, **no Ibrahim-specific absolute paths are required**.
 
-### Deterministic reconstruction first
+### Path B — Fresh full study / replication with adaptive 5M scheduling
+
+Use this path when trajectories do not already exist and the collaborator is launching a new complete study.
+
+First configure `.env` with the authorized LiteLLM key or key pool and the gateway quota:
+
+```bash
+cp .env.example .env
+# Edit .env and set the authorized key(s).
+
+export LITE_LLM_TPM_LIMIT=5000000
+```
+
+For the **current full benchmark**, keep the default 11-variant design:
+
+```text
+70 base tasks
+× 11 variants
+= 770 trajectories/model
+= 3,080 trajectories total
+```
+
+For an **exact replication of the first historical primary cohort**, use the original 10-variant matrix:
+
+```bash
+export FULL_INCLUDE_RESOURCE=false
+```
+
+which gives:
+
+```text
+70 base tasks
+× 10 variants
+= 700 trajectories/model
+= 2,800 trajectories total
+```
+
+Prepare and validate the selected study before launching any model trajectories:
+
+```bash
+./lab.sh plan full
+
+PROFILES="claude fable codex llama"   ./lab.sh prepare full
+
+./lab.sh validate full all
+```
+
+For a 5M TPM gateway, prefer `scale-5m-adaptive` rather than the static `scale-5m` preset.
+
+The adaptive scheduler keeps Claude, Fable, and Codex at fixed high-throughput allocations while treating Llama as globally elastic background work. Llama starts at **one active trial globally**, even with multiple LiteLLM keys, then increases after clean micro-batches and backs off after observed rate-limit feedback.
+
+Default adaptive controls:
+
+```text
+ADAPTIVE_LLAMA_MIN=1
+ADAPTIVE_LLAMA_MAX=12
+ADAPTIVE_LLAMA_STEP=1
+ADAPTIVE_LLAMA_BATCH_BASE_TASKS=2
+ADAPTIVE_LLAMA_COOLDOWN_SECONDS=30
+```
+
+The gateway does not expose an authoritative live remaining-TPM counter to the runner, so this is feedback-controlled AIMD scheduling rather than exact unused-TPM measurement. Scheduling changes do **not** alter task contents, model/scaffold, verifier, or within-base-task treatment families.
+
+Preview shard 1 before launching:
+
+```bash
+./lab.sh matrix full   --concurrency-preset scale-5m-adaptive   --shard-size 30   --shard-index 1   --dry-run
+```
+
+For an independent replication, keep new outputs separate from the historical result tree:
+
+```bash
+export REPL_RESULTS="$PWD/results-replication-$(date +%Y%m%d)"
+```
+
+Then run the three base-task-aware shards **sequentially**:
+
+```bash
+for shard in 1 2 3; do
+  echo "===== FULL SHARD $shard / 3 ====="
+
+  RESULTS_ROOT="$REPL_RESULTS"   caffeinate -dimsu   ./lab.sh matrix full     --concurrency-preset scale-5m-adaptive     --shard-size 30     --shard-index "$shard"
+done
+```
+
+The outer shards contain `30 / 30 / 10` complete base-task families. Do not launch the three outer shards simultaneously.
+
+For adaptive Llama, the controller records its scheduling decisions and per-batch logs under the selected results root. Each Harbor job still records its actual concurrency in `run_metadata.json`.
+
+After a replication stored outside the normal `<clone>/results/full/` directory, analyze each profile against that result tree explicitly:
+
+```bash
+for profile in claude fable codex llama; do
+  ./lab.sh analyze full "$profile"     --results-dir "$REPL_RESULTS/full"     --no-semantic
+done
+
+./lab.sh results full all
+```
+
+After deterministic reconstruction succeeds, optional semantic analysis of the same external cohort can be run per profile:
+
+```bash
+for profile in claude fable codex llama; do
+  ./lab.sh analyze full "$profile"     --results-dir "$REPL_RESULTS/full"
+done
+
+./lab.sh results full all
+```
+
+If instead the new trajectories are stored under the standard `<clone>/results/full/` location, the shorter `all` commands work:
+
+```bash
+./lab.sh analyze full all --no-semantic
+./lab.sh results full all
+./lab.sh behavior-report full
+
+# Optional semantic analysis:
+./lab.sh analyze full all
+```
+
+### Path A — Deterministic reconstruction from existing results
 
 ```bash
 ./lab.sh analyze full all --no-semantic
@@ -174,9 +294,9 @@ Some frozen historical provenance files intentionally contain the original absol
 
 ### Minimal collaborator workflow
 
-```bash
-# Complete Harbor outputs already copied into results/full/
+**Path A — complete trajectories already exist under `results/full/`:**
 
+```bash
 ./lab.sh analyze full all --no-semantic
 ./lab.sh results full all
 ./lab.sh behavior-report full
@@ -185,7 +305,35 @@ Some frozen historical provenance files intentionally contain the original absol
 ./lab.sh analyze full all
 ```
 
+**Path B — run a fresh 5M full study / replication:**
+
+```bash
+# Exact historical replication only:
+# export FULL_INCLUDE_RESOURCE=false
+
+./lab.sh plan full
+
+PROFILES="claude fable codex llama"   ./lab.sh prepare full
+
+./lab.sh validate full all
+
+./lab.sh matrix full   --concurrency-preset scale-5m-adaptive   --shard-size 30   --shard-index 1   --dry-run
+
+export REPL_RESULTS="$PWD/results-replication-$(date +%Y%m%d)"
+
+for shard in 1 2 3; do
+  RESULTS_ROOT="$REPL_RESULTS"   caffeinate -dimsu   ./lab.sh matrix full     --concurrency-preset scale-5m-adaptive     --shard-size 30     --shard-index "$shard"
+done
+
+for profile in claude fable codex llama; do
+  ./lab.sh analyze full "$profile"     --results-dir "$REPL_RESULTS/full"     --no-semantic
+done
+
+./lab.sh results full all
+```
+
 If these commands succeed, no machine-specific trajectory-path edits are required.
+
 
 ## Quick start: clone → smoke → full → analyze → report
 
@@ -354,17 +502,17 @@ export LITE_LLM_KEYS="key1,key2,key3"
 export LITE_LLM_TPM_LIMIT=5000000
 ```
 
-Then preview the first full-study shard with the 5M preset:
+Then preview the first full-study shard with the recommended adaptive 5M preset:
 
 ```bash
 ./lab.sh matrix full \
-  --concurrency-preset scale-5m \
+  --concurrency-preset scale-5m-adaptive \
   --shard-size 30 \
   --shard-index 1 \
   --dry-run
 ```
 
-`scale-5m` applies Claude=20, Fable=16, Codex=16, and Llama=4 **per key**. If `LITE_LLM_KEYS` contains multiple keys, the runner automatically partitions each selected dataset across them.
+`scale-5m-adaptive` keeps the high-throughput non-Llama allocations while making Llama a **globally elastic** workload. It starts at one active Llama trial globally, ramps upward after clean micro-batches, and backs off after observed rate-limit feedback. Use static `scale-5m` only when fixed per-key Llama concurrency is intentionally desired.
 
 For an unknown or smaller quota:
 
@@ -387,12 +535,12 @@ for shard in 1 2 3; do
 done
 ```
 
-For upgraded 5M TPM keys, use the same three sequential shards with the `scale-5m` preset:
+For upgraded 5M TPM keys, use the same three sequential shards with the recommended `scale-5m-adaptive` preset:
 
 ```bash
 for shard in 1 2 3; do
   caffeinate -dimsu ./lab.sh matrix full \
-    --concurrency-preset scale-5m \
+    --concurrency-preset scale-5m-adaptive \
     --shard-size 30 \
     --shard-index "$shard"
 done
@@ -933,57 +1081,6 @@ done
 Do **not** launch the three shards simultaneously. The concurrency preset already accounts for the intended aggregate load across all four profiles.
 
 With a multi-key pool, rate-limited runner shards are automatically resumed under an alternate key. With one key, or if every key is exhausted, reduce concurrency or use the repository resume wrapper after the quota resets; do not repeatedly relaunch entire jobs.
-
-### Adaptive 5M Llama spillover
-
-For upgraded 5M TPM keys, `scale-5m-adaptive` keeps Claude/Fable/Codex at the
-normal high-throughput starting allocation while treating Llama as elastic
-background work:
-
-```bash
-./lab.sh matrix full \
-  --concurrency-preset scale-5m-adaptive \
-  --shard-size 30 \
-  --shard-index 1 \
-  --dry-run
-```
-
-Llama starts at **one active trial globally**, even when `LITE_LLM_KEYS`
-contains several keys. It runs small complete-base-task batches and rotates the
-selected key between batches. After a clean batch it increases global Llama
-concurrency by one; after an observed HTTP/rate-limit event it halves the
-concurrency, waits, and resumes only the latest rate-limited trials. Defaults:
-
-```text
-ADAPTIVE_LLAMA_MIN=1
-ADAPTIVE_LLAMA_MAX=12
-ADAPTIVE_LLAMA_STEP=1
-ADAPTIVE_LLAMA_BATCH_BASE_TASKS=2
-ADAPTIVE_LLAMA_COOLDOWN_SECONDS=30
-```
-
-The gateway does not expose an authoritative live remaining-TPM counter to the
-runner, so this is feedback-controlled AIMD scheduling rather than a claim of
-measuring exact unused TPM. Scheduling changes do not change task contents,
-model/scaffold, verifier, or within-base-task variant families. Every adaptive
-Llama Harbor job records its actual concurrency in `run_metadata.json`, and the
-controller writes `llama_decisions.tsv` under its results directory.
-
-For an independent replication, keep its outputs separate from the historical
-cohort by overriding `RESULTS_ROOT` for the launch:
-
-```bash
-RESULTS_ROOT="$PWD/results-replication-20260826" \
-  ./lab.sh matrix full \
-  --concurrency-preset scale-5m-adaptive \
-  --shard-size 30 \
-  --shard-index 1
-```
-
-`RESULTS_ROOT` is an execution/output location only; the prepared dataset and
-study manifest still come from this checkout. The analyzer can later read the
-replication via `--results-dir` or a symlink under the standard `results/`
-layout.
 
 ### Interrupted or infrastructure-censored runs
 
