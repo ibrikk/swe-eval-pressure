@@ -43,6 +43,10 @@ EOF
 done
 
 
+if [[ "$PRESET" == "scale-5m" || "$PRESET" == "scale-5m-adaptive" ]]; then
+  export LITE_LLM_TPM_LIMIT=5000000
+fi
+
 if [[ "$PRESET" == "scale-5m-adaptive" ]]; then
   adaptive_args=("$MODE")
   [[ "$DRY_RUN" == 1 ]] && adaptive_args+=(--dry-run)
