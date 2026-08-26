@@ -49,7 +49,7 @@ from behavior_tables import (
 )
 from litellm_pool import RateLimitKeyPool, parse_litellm_keys, parse_reset_epoch
 
-ANALYZER_SCHEMA = "2.6"
+ANALYZER_SCHEMA = "2.7"
 SEMANTIC_JUDGE_VERSION = "2.6"
 SEMANTIC_JUDGE_TEMPERATURE = 0.0
 
@@ -333,6 +333,16 @@ def discover_runs(
         metadata = safe_json(metadata_path) or {}
         if not isinstance(metadata, dict):
             metadata = {}
+
+        # Installation/smoke jobs are execution diagnostics, not members of an
+        # analytical cohort. Exclude them before manifest/signature discovery so
+        # they cannot appear in selected_run_directories or affect cohort choice.
+        if bool(metadata.get("install_only")):
+            warnings.append(
+                f"Skipped {run_dir}: install-only run is not an analytical cohort."
+            )
+            continue
+
         manifest_path, manifest = manifest_from_run(run_dir, project_root, mode, profile, manifest_override)
         if not isinstance(manifest, dict) or manifest_path is None:
             warnings.append(f"Skipped {run_dir}: no readable dataset manifest.")
@@ -1407,6 +1417,43 @@ def collect_result_candidates(runs: list[RunSource], planned: dict[str, dict[str
     return candidates
 
 
+def apply_candidate_protocol_classification(
+    profile: str,
+    candidates: dict[str, list[dict[str, Any]]],
+) -> None:
+    """Apply protocol validity before reconstruction and candidate selection.
+
+    Harbor can report a Mini-SWE trial as completed even when no agent/model
+    action was recorded. Such a trial must not count as substantive while
+    enforcing reconstruction invariants or selecting among reruns.
+    """
+    if profile != "llama":
+        return
+
+    for items in candidates.values():
+        for candidate in items:
+            if candidate.get("status") != "completed":
+                continue
+
+            trajectory_path, trajectory = load_trajectory(
+                candidate["trial_dir"]
+            )
+
+            status, exc_type, exc_message = classify_agent_protocol_status(
+                profile,
+                str(candidate.get("status") or ""),
+                str(candidate.get("exception_type") or ""),
+                "",
+                trajectory_path,
+                candidate["result"],
+                trajectory,
+            )
+
+            candidate["status"] = status
+            candidate["exception_type"] = exc_type
+            candidate["protocol_exception_message"] = exc_message
+
+
 def select_candidates(
     candidates: dict[str, list[dict[str, Any]]],
     repeats: int,
@@ -1491,7 +1538,6 @@ def classify_agent_protocol_status(
     if (
         profile == "llama"
         and status == "completed"
-        and trajectory_path is not None
         and result.get(
             "agent_execution"
         ) is not None
@@ -1504,6 +1550,17 @@ def classify_agent_protocol_status(
             )
         ) == 0
     ):
+        if trajectory_path is None:
+            return (
+                "agent_protocol_error",
+                "MissingTrajectory",
+                (
+                    "Harbor marked the Mini-SWE trial completed, "
+                    "but no recorded trajectory file was available. "
+                    "Excluded from substantive model outcomes."
+                ),
+            )
+
         return (
             "agent_protocol_error",
             "NoRecordedAgentStep",
@@ -2964,6 +3021,14 @@ def main() -> None:
     repeats = next(iter(repeats_values))
 
     candidates = collect_result_candidates(selected_runs, planned)
+
+    # Candidate protocol validity is part of reconstruction, not merely a
+    # post-selection annotation. In particular, a zero-action Mini-SWE result
+    # must not beat a valid rerun under latest-substantive selection.
+    apply_candidate_protocol_classification(
+        args.profile,
+        candidates,
+    )
 
     # A normal (non-live) analysis is expected to represent the complete planned
     # study. This prevents a newer partial shard/group from silently replacing a
