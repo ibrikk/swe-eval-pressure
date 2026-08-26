@@ -4,6 +4,189 @@ SWE-EvalPressure is a controlled benchmark for studying how coding agents behave
 
 The experimental conditions change only the repository context presented to the agent. Harness-level compatibility wrappers normalize agent installation across heterogeneous task images; they do not change the task instructions, tests, verifier logic, or agent run/solver behavior.
 
+## Collaborator workflow: analyze existing trajectories
+
+This is the recommended workflow for Madhu, collaborators, and future users who already have completed SWE-EvalPressure Harbor outputs.
+
+### Put the complete Harbor outputs under `results/`
+
+`results/` is gitignored, so a fresh clone does not contain trajectories. Copy or sync the **complete Harbor result tree**, preserving its directory structure.
+
+Recommended layout:
+
+```text
+swe-eval-pressure/
+├── results/
+│   ├── full/
+│   │   └── <complete run / shard / Harbor job directories>
+│   └── resource/
+│       └── <complete standalone resource-study directories>
+└── analysis/        # generated locally
+```
+
+Do **not** flatten the results tree and do not copy only trajectory JSON files. Keep run metadata, manifests, Harbor job configuration, per-trial `result.json`, trajectories, verifier outputs, patches, and exception/status information.
+
+The surrounding metadata is required to recover model profile, base task, condition, placement, pressure type, verifier result, shard identity, and provenance.
+
+### Fresh clone with completed trajectories
+
+```bash
+git clone git@github.com:ibrikk/swe-eval-pressure.git
+cd swe-eval-pressure
+uv python install 3.13
+uv sync --locked --group dev --group inference
+```
+
+Copy the complete full-study results into `results/full/`. If a standalone resource-deprivation study exists, copy it into `results/resource/`.
+
+For the normal `<clone>/results/<mode>/` layout, **no Ibrahim-specific absolute paths are required**.
+
+### Deterministic reconstruction first
+
+```bash
+./lab.sh analyze full all --no-semantic
+```
+
+For standalone resource mode:
+
+```bash
+./lab.sh analyze resource all --no-semantic
+```
+
+The analyzer automatically discovers and merges compatible unsharded runs, shards, resumed jobs, separate launch batches, and infrastructure-censored outcomes. Matched effects are reconstructed only from substantively usable within-task pairs.
+
+Canonical outputs are written under `analysis/full/<profile>/` or `analysis/resource/<profile>/`. Important files include `trials.csv`, `trials.json`, `matched_pairs.csv`, `behavior_trials.csv`, `matched_behavior_pairs.csv`, `coverage.csv`, `terminal_status.csv`, `summary.json`, and `report.md`.
+
+### Cross-model results
+
+```bash
+./lab.sh results full all
+```
+
+For standalone resource mode:
+
+```bash
+./lab.sh results resource all
+```
+
+### Portable deterministic HTML
+
+```bash
+./lab.sh behavior-report full
+```
+
+This performs deterministic behavioral reconstruction and generates an HTML report without semantic judge calls.
+
+Default locations:
+
+```text
+results:  <clone>/results/full/
+analysis: <clone>/analysis/behavior/full/
+HTML:     <clone>/reports/behavior/full/SWE_EvalPressure_Behavior_PreRead.html
+```
+
+The same command supports standalone resource mode:
+
+```bash
+./lab.sh behavior-report resource
+```
+
+### Results stored somewhere else
+
+The easiest option is a symlink:
+
+```bash
+mkdir -p results
+ln -s "/path/to/completed/full/results" results/full
+```
+
+Then use the normal commands unchanged.
+
+The portable behavioral pipeline also accepts arbitrary locations:
+
+```bash
+./lab.sh behavior-report full \
+  --results-root "/path/to/results/full" \
+  --analysis-root "/path/to/analysis/full" \
+  --output-root "/path/to/report"
+```
+
+For the canonical analyzer, an external result directory can be supplied per profile:
+
+```bash
+for profile in claude fable codex llama; do
+  ./lab.sh analyze full "$profile" \
+    --results-dir "/path/to/results/full" \
+    --no-semantic
+done
+
+./lab.sh results full all
+```
+
+### Semantic analysis
+
+After deterministic reconstruction succeeds, configure authorized LiteLLM credentials in `.env` and run:
+
+```bash
+./lab.sh analyze full all
+```
+
+Semantic judgments are cached. If credentials are unavailable, deterministic analysis can still be run with `--no-semantic`.
+
+### Original + repair/retry runs
+
+For an explicit provenance-aware reconstruction:
+
+```bash
+./lab.sh analyze full llama \
+  --run-dir /path/to/original-run \
+  --run-dir /path/to/repair-run \
+  --manifest /path/to/common-manifest.json \
+  --strict-reconstruction \
+  --no-semantic
+```
+
+Repeat `--run-dir` for every accepted compatible run. A censored-task allowlist may also be supplied with `--censored-task-allowlist` when the study intentionally retains known infrastructure-censored cells.
+
+### Partial studies
+
+Use `--live` only when intentionally analyzing an incomplete study:
+
+```bash
+./lab.sh analyze full all --live --no-semantic
+```
+
+Without `--live`, missing planned results cause reconstruction to fail rather than silently shrinking the denominator.
+
+### Historical versus current full matrix
+
+The current default full benchmark is 70 tasks × 11 variants = 770 trajectories/model = 3,080 total.
+
+The first historical production cohort used 70 tasks × 10 variants = 700 trajectories/model = 2,800 total.
+
+Both are supported. The analyzer follows the compatible run manifests and only adds the resource comparison when `eval_resource_deprivation/scaffold` is actually present.
+
+### Path portability contract
+
+For new cohorts, the repository may be cloned anywhere. The normal workflow uses `<clone>/results/<mode>/`; external results can be supplied with `--results-dir`, `--run-dir`, or `--results-root`; analysis/report outputs may live elsewhere; and new analyses do not require `/Users/ibrahim.khalilov/...`.
+
+Some frozen historical provenance files intentionally contain the original absolute paths from the machine on which those artifacts were produced. Those strings are immutable provenance and are not required for analyzing a new results tree.
+
+### Minimal collaborator workflow
+
+```bash
+# Complete Harbor outputs already copied into results/full/
+
+./lab.sh analyze full all --no-semantic
+./lab.sh results full all
+./lab.sh behavior-report full
+
+# Optional after configuring LiteLLM credentials:
+./lab.sh analyze full all
+```
+
+If these commands succeed, no machine-specific trajectory-path edits are required.
+
 ## Quick start: clone → smoke → full → analyze → report
 
 This is the shortest supported path for a fresh machine. Run these blocks in order. The rest of the README is reference material.
