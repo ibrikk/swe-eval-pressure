@@ -1,0 +1,24 @@
+{
+  "analysis_characterization": "post_descriptive_pre_inferential plan frozen before matched p-values and confidence intervals were inspected",
+  "contrast_csv_sha256": "d9a733a9521022a4803c90475eb2d86d5bfe5c8c08b64e44f75c13ad79120eff",
+  "counts": {
+    "evaluation_recognition_global_significant": 0,
+    "global_significant_by_profile": {
+      "claude": 16,
+      "fable": 8
+    },
+    "holm_global_120_significant": 24,
+    "holm_within_profile_significant": 24,
+    "tests": 120
+  },
+  "freeze_version": "1.0",
+  "git_commit_at_freeze": "bb70b7093d25f747e0f5bb5cea030021c0bd3dff",
+  "matched_output_root": "/Users/ibrahim.khalilov/Documents/swe-eval-pressure/analysis/semantic-multijudge-v1/matched-inference-v1",
+  "plan_path": "/Users/ibrahim.khalilov/Documents/swe-eval-pressure-behavior/config/semantic_matched_inference_plan_v1.json",
+  "plan_sha256": "7542e69948fa774c1f8e06e77a724857e3de82869cf3fcd15dbb5b55b3c22e50",
+  "report_sha256": "3294de787764e0e3904880f80313c94bd34046f23faf8b258ab47917279f7063",
+  "semantic_freeze_ledger": "/Users/ibrahim.khalilov/Documents/swe-eval-pressure-behavior/config/historical_semantic_final_freeze_v1.json",
+  "semantic_freeze_ledger_sha256": "6c449d9e624b85a66e2d13528167b62005b05ac2f8ff429d41f24995dc3b969a",
+  "status": "frozen_historical_semantic_matched_inference",
+  "summary_sha256": "98d1318876895c5e672a3ef1e1b6525d9c79e1896592bc55742a1f859f7ba2a6"
+}
