@@ -208,6 +208,7 @@ class RunSource:
     metadata_path: Path | None
     metadata: dict[str, Any]
     signature: str
+    replication_id: str
     created_at: datetime | None
 
 
@@ -354,6 +355,10 @@ def discover_runs(
         if run_profile and str(run_profile) != profile:
             continue
         sig = study_signature(manifest, metadata)
+        replication_id = str(
+            metadata.get("replication_id") or ""
+        ).strip()
+
         discovered.append(
             RunSource(
                 root=run_dir,
@@ -362,6 +367,7 @@ def discover_runs(
                 metadata_path=metadata_path if metadata_path.exists() else None,
                 metadata=metadata,
                 signature=sig,
+                replication_id=replication_id,
                 created_at=run_created_at(run_dir, metadata),
             )
         )
@@ -369,26 +375,103 @@ def discover_runs(
     if not discovered:
         return [], [], warnings
 
-    groups: dict[str, list[RunSource]] = defaultdict(list)
+    # A study signature identifies an experimental specification.
+    # A replication_id, when present, identifies one independent execution
+    # cohort of that specification. Different replications must never be
+    # combined cell-by-cell merely because their experimental settings match.
+    #
+    # Historical runs predate replication_id. Those retain backward-compatible
+    # grouping under the sentinel below and should be reconstructed explicitly
+    # with --run-dir when multiple independent legacy replications coexist.
+    LEGACY_REPLICATION = "__legacy_no_replication_id__"
+
+    groups: dict[
+        tuple[str, str],
+        list[RunSource],
+    ] = defaultdict(list)
+
     for run in discovered:
-        groups[run.signature].append(run)
+        replication_key = (
+            run.replication_id
+            if run.replication_id
+            else LEGACY_REPLICATION
+        )
 
-    # Different model/network/cue configurations must never be silently pooled.
-    # If discovery finds several configurations, use the most recently active
-    # compatible group and report what was excluded. Users can constrain with
-    # --results-dir when they need a specific historical cohort.
-    def group_latest(group: list[RunSource]) -> datetime:
-        values = [r.created_at for r in group if r.created_at]
-        return max(values) if values else datetime.min.replace(tzinfo=timezone.utc)
+        groups[
+            (
+                run.signature,
+                replication_key,
+            )
+        ].append(run)
 
-    selected_sig = max(groups, key=lambda sig: group_latest(groups[sig]))
-    selected = sorted(groups[selected_sig], key=lambda r: (r.created_at or datetime.min.replace(tzinfo=timezone.utc), str(r.root)))
-    excluded = [r for sig, rs in groups.items() if sig != selected_sig for r in rs]
+    def group_latest(
+        group: list[RunSource],
+    ) -> datetime:
+        values = [
+            r.created_at
+            for r in group
+            if r.created_at
+        ]
+
+        return (
+            max(values)
+            if values
+            else datetime.min.replace(
+                tzinfo=timezone.utc
+            )
+        )
+
+    selected_key = max(
+        groups,
+        key=lambda key: group_latest(
+            groups[key]
+        ),
+    )
+
+    selected = sorted(
+        groups[selected_key],
+        key=lambda r: (
+            r.created_at
+            or datetime.min.replace(
+                tzinfo=timezone.utc
+            ),
+            str(r.root),
+        ),
+    )
+
+    excluded = [
+        r
+        for key, runs in groups.items()
+        if key != selected_key
+        for r in runs
+    ]
+
+    selected_signature, selected_replication = (
+        selected_key
+    )
+
+    if selected_replication == LEGACY_REPLICATION:
+        warnings.append(
+            "Selected runs do not carry replication_id; "
+            "using backward-compatible legacy grouping by "
+            "study_signature. If multiple independent legacy "
+            "replications share this results container, use "
+            "--run-dir for explicit provenance reconstruction."
+        )
+
     if excluded:
         warnings.append(
-            f"Found {len(groups)} incompatible study signatures; selected newest signature {selected_sig} "
-            f"({len(selected)} run director{'y' if len(selected)==1 else 'ies'}) and excluded {len(excluded)}."
+            f"Found {len(groups)} distinct study/replication cohorts; "
+            f"selected newest cohort "
+            f"study_signature={selected_signature}, "
+            f"replication_id="
+            f"{None if selected_replication == LEGACY_REPLICATION else selected_replication!r} "
+            f"({len(selected)} run director"
+            f"{'y' if len(selected) == 1 else 'ies'}) "
+            f"and excluded {len(excluded)} run director"
+            f"{'y' if len(excluded) == 1 else 'ies'}."
         )
+
     return selected, excluded, warnings
 
 
@@ -3232,6 +3315,18 @@ def main() -> None:
         "mode": args.mode,
         "profile": args.profile,
         "study_signature": signature,
+        "replication_id": (
+            selected_runs[-1].replication_id
+            if selected_runs
+            and selected_runs[-1].replication_id
+            else None
+        ),
+        "replication_identity_status": (
+            "explicit"
+            if selected_runs
+            and selected_runs[-1].replication_id
+            else "legacy_missing"
+        ),
         "live": bool(args.live),
         "strict_reconstruction": bool(args.strict_reconstruction),
         "censored_task_allowlist": sorted(allowed_censored_tasks),
