@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+
+  "primary_complete": {
+    "kind": "reconstructed_trial_source",
+    "expected_planned_per_profile": 700,
+    "expected_substantive_per_profile": 694,
+
+    "profiles": {
+      "claude": {
+        "trials": "analysis/frozen/semantic-v26-primary-final-20260823/claude/trials.json"
+      },
+      "fable": {
+        "trials": "analysis/frozen/semantic-v26-primary-final-20260823/fable/trials.json"
+      },
+      "codex": {
+        "trials": "analysis/frozen/semantic-v26-primary-final-20260823/codex/trials.json"
+      },
+      "llama": {
+        "trials": "analysis/frozen/historical-primary-repaired-llama-20260826/llama/trials.json"
+      }
+    },
+
+    "ignore_legacy_semantic_columns": true
+  },
+
+  "resource_complete": {
+    "kind": "raw_run_reconstruction",
+    "mode": "resource",
+    "search_roots": [
+      "results/resource"
+    ],
+
+    "study_signatures": {
+      "claude": "857af292f805a4c3",
+      "fable": "17bfd4e306e12578",
+      "codex": "80b3694e1af29095",
+      "llama": "c80c02f909871370"
+    },
+
+    "expected_planned_per_profile": 210
+  },
+
+  "primary_replication_current": {
+    "kind": "raw_run_reconstruction",
+    "mode": "full",
+    "status": "partial",
+
+    "search_roots": [
+      "results/full",
+      "results/archive/aborted-full-shard2-20260826"
+    ],
+
+    "study_signatures": {
+      "claude": "84daa6429bccad98",
+      "fable": "b49238638eff9d5f",
+      "codex": "31b57a5b44506a04",
+      "llama": "961f6e305ac26bd9"
+    }
+  },
+
+  "semantic_primary": {
+    "kind": "raw_multijudge_jobs",
+    "root": "analysis/semantic-multijudge-v1/final-repaired-llama-v1",
+    "schema": "config/semantic_judge_schema.json",
+    "judges": [
+      "deepseek",
+      "gemini"
+    ]
+  },
+
+  "semantic_resource": {
+    "kind": "raw_multijudge_jobs",
+    "root": "analysis/semantic-resource-v1/full/production-v1.1",
+    "judges": [
+      "deepseek",
+      "gemini"
+    ],
+    "note": "Resource semantic rubric is separate from the primary semantic rubric."
+  },
+
+  "output": {
+    "analysis_root": "analysis/current",
+    "report_root": "reports/current"
+  },
+
+  "analysis_policy": {
+    "old_aggregate_tables_are_inputs": false,
+    "old_inference_tables_are_inputs": false,
+    "old_html_reports_are_inputs": false,
+    "old_semantic_summary_tables_are_inputs": false,
+
+    "semantic_states_are_post_treatment": true,
+    "said_did_is_descriptive": true,
+    "infrastructure_failures_are_censored": true,
+    "replication_is_not_pooled_with_primary": true
+  }
+}

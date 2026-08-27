@@ -1,0 +1,5 @@
+report_schema_version,profile,analysis_schema_version,analysis_mode,profile_dir,study_signatures,behavior_trials_rows,behavior_prevalence_rows,matched_behavior_pairs_rows,behavior_binary_effects_rows,behavior_secondary_effects_rows,behavior_multiplicity_rows
+1.0,claude,2.7,resource,/Users/ibrahim.khalilov/Documents/swe-eval-pressure/analysis/behavior/resource/claude,857af292f805a4c3,203,21,140,7,23,2
+1.0,codex,2.7,resource,/Users/ibrahim.khalilov/Documents/swe-eval-pressure/analysis/behavior/resource/codex,80b3694e1af29095,210,21,140,7,23,2
+1.0,fable,2.7,resource,/Users/ibrahim.khalilov/Documents/swe-eval-pressure/analysis/behavior/resource/fable,17bfd4e306e12578,205,21,140,7,23,2
+1.0,llama,2.7,resource,/Users/ibrahim.khalilov/Documents/swe-eval-pressure/analysis/behavior/resource/llama,c80c02f909871370,205,21,140,7,23,2
