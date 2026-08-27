@@ -1,0 +1,56 @@
+<svg viewBox="0 0 980 673" role="img" aria-label="DeepSeek ↔ Gemini raw agreement">
+<style>.lab{font:13px -apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;fill:#263238}.val{font:12px ui-monospace,SFMono-Regular,Menlo,monospace;fill:#455a64}.axis{stroke:#9aa7b2;stroke-width:1}.pos{fill:#335f8a}.neg{fill:#9b5757}</style>
+<text x="390" y="28" class="lab" font-weight="700">DeepSeek ↔ Gemini raw agreement</text>
+<line x1="640.0" y1="48" x2="640.0" y2="658" class="axis"/>
+<text x="8" y="78" class="lab">primary · evaluation recognition</text>
+<rect x="640.0" y="65" width="213.1" height="18" rx="3" class="pos"/>
+<text x="900" y="78" class="val">+84.5%</text>
+<text x="8" y="112" class="lab">resource · evaluation recognition</text>
+<rect x="640.0" y="99" width="217.1" height="18" rx="3" class="pos"/>
+<text x="900" y="112" class="val">+86.1%</text>
+<text x="8" y="146" class="lab">resource · response reduce exploration</text>
+<rect x="640.0" y="133" width="239.5" height="18" rx="3" class="pos"/>
+<text x="900" y="146" class="val">+95.0%</text>
+<text x="8" y="180" class="lab">resource · response conserve tool calls</text>
+<rect x="640.0" y="167" width="239.9" height="18" rx="3" class="pos"/>
+<text x="900" y="180" class="val">+95.2%</text>
+<text x="8" y="214" class="lab">primary · cue provenance stance</text>
+<rect x="640.0" y="201" width="240.0" height="18" rx="3" class="pos"/>
+<text x="900" y="214" class="val">+95.2%</text>
+<text x="8" y="248" class="lab">resource · response reduce validation</text>
+<rect x="640.0" y="235" width="241.6" height="18" rx="3" class="pos"/>
+<text x="900" y="248" class="val">+95.8%</text>
+<text x="8" y="282" class="lab">primary · claimed behavioral response</text>
+<rect x="640.0" y="269" width="242.7" height="18" rx="3" class="pos"/>
+<text x="900" y="282" class="val">+96.3%</text>
+<text x="8" y="316" class="lab">resource · response prioritize core edit</text>
+<rect x="640.0" y="303" width="242.8" height="18" rx="3" class="pos"/>
+<text x="900" y="316" class="val">+96.3%</text>
+<text x="8" y="350" class="lab">primary · pressure recognition</text>
+<rect x="640.0" y="337" width="244.9" height="18" rx="3" class="pos"/>
+<text x="900" y="350" class="val">+97.1%</text>
+<text x="8" y="384" class="lab">resource · claimed resource response</text>
+<rect x="640.0" y="371" width="244.9" height="18" rx="3" class="pos"/>
+<text x="900" y="384" class="val">+97.2%</text>
+<text x="8" y="418" class="lab">resource · resource constraint stance</text>
+<rect x="640.0" y="405" width="244.9" height="18" rx="3" class="pos"/>
+<text x="900" y="418" class="val">+97.2%</text>
+<text x="8" y="452" class="lab">resource · response batch commands</text>
+<rect x="640.0" y="439" width="245.4" height="18" rx="3" class="pos"/>
+<text x="900" y="452" class="val">+97.3%</text>
+<text x="8" y="486" class="lab">resource · resource constraint recognition</text>
+<rect x="640.0" y="473" width="246.6" height="18" rx="3" class="pos"/>
+<text x="900" y="486" class="val">+97.8%</text>
+<text x="8" y="520" class="lab">primary · explicit resistance</text>
+<rect x="640.0" y="507" width="248.4" height="18" rx="3" class="pos"/>
+<text x="900" y="520" class="val">+98.5%</text>
+<text x="8" y="554" class="lab">resource · response other</text>
+<rect x="640.0" y="541" width="248.7" height="18" rx="3" class="pos"/>
+<text x="900" y="554" class="val">+98.7%</text>
+<text x="8" y="588" class="lab">resource · evaluation targeting intent</text>
+<rect x="640.0" y="575" width="249.6" height="18" rx="3" class="pos"/>
+<text x="900" y="588" class="val">+99.0%</text>
+<text x="8" y="622" class="lab">resource · response stop early</text>
+<rect x="640.0" y="609" width="250.0" height="18" rx="3" class="pos"/>
+<text x="900" y="622" class="val">+99.2%</text>
+</svg>

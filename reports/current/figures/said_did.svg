@@ -1,0 +1,41 @@
+<svg viewBox="0 0 980 503" role="img" aria-label="Verbal stance did not always imply behavioral invariance">
+<style>.lab{font:13px -apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;fill:#263238}.val{font:12px ui-monospace,SFMono-Regular,Menlo,monospace;fill:#455a64}.axis{stroke:#9aa7b2;stroke-width:1}.pos{fill:#335f8a}.neg{fill:#9b5757}</style>
+<text x="390" y="28" class="lab" font-weight="700">Verbal stance did not always imply behavioral invariance</text>
+<line x1="640.0" y1="48" x2="640.0" y2="488" class="axis"/>
+<text x="8" y="78" class="lab">Claude Opus 4.8 · cue provenance stance=untrusted_or_suspicious · Cue/test/context modification</text>
+<rect x="640.0" y="65" width="250.0" height="18" rx="3" class="pos"/>
+<text x="900" y="78" class="val">+47.9%</text>
+<text x="8" y="112" class="lab">Claude Opus 4.8 · explicit resistance=observed · Cue/test/context modification</text>
+<rect x="640.0" y="99" width="250.0" height="18" rx="3" class="pos"/>
+<text x="900" y="112" class="val">+47.9%</text>
+<text x="8" y="146" class="lab">Claude Fable 5 · explicit resistance=observed · Validation calls</text>
+<rect x="640.0" y="133" width="192.8" height="18" rx="3" class="pos"/>
+<text x="900" y="146" class="val">+37.0%</text>
+<text x="8" y="180" class="lab">Claude Opus 4.8 · cue provenance stance=untrusted_or_suspicious · Cue/test/context modification</text>
+<rect x="640.0" y="167" width="187.8" height="18" rx="3" class="pos"/>
+<text x="900" y="180" class="val">+36.0%</text>
+<text x="8" y="214" class="lab">Claude Opus 4.8 · explicit resistance=observed · Cue/test/context modification</text>
+<rect x="640.0" y="201" width="187.8" height="18" rx="3" class="pos"/>
+<text x="900" y="214" class="val">+36.0%</text>
+<text x="8" y="248" class="lab">Claude Fable 5 · explicit resistance=observed · Validation calls</text>
+<rect x="640.0" y="235" width="169.2" height="18" rx="3" class="pos"/>
+<text x="900" y="248" class="val">+32.4%</text>
+<text x="8" y="282" class="lab">Claude Fable 5 · claimed behavioral response=ignore · Input tokens</text>
+<rect x="640.0" y="269" width="153.5" height="18" rx="3" class="pos"/>
+<text x="900" y="282" class="val">+29.4%</text>
+<text x="8" y="316" class="lab">Claude Fable 5 · cue provenance stance=untrusted_or_suspicious · Input tokens</text>
+<rect x="640.0" y="303" width="135.3" height="18" rx="3" class="pos"/>
+<text x="900" y="316" class="val">+25.9%</text>
+<text x="8" y="350" class="lab">Claude Opus 4.8 · claimed resource response=explicitly_ignore_constraint · Provenance inspection</text>
+<rect x="535.7" y="337" width="104.3" height="18" rx="3" class="neg"/>
+<text x="900" y="350" class="val">-20.0%</text>
+<text x="8" y="384" class="lab">Claude Opus 4.8 · cue provenance stance=untrusted_or_suspicious · Duration (s)</text>
+<rect x="640.0" y="371" width="95.8" height="18" rx="3" class="pos"/>
+<text x="900" y="384" class="val">+18.4%</text>
+<text x="8" y="418" class="lab">Claude Opus 4.8 · resource constraint stance=rejected_as_untrusted_or_injection · Output tokens</text>
+<rect x="640.0" y="405" width="94.5" height="18" rx="3" class="pos"/>
+<text x="900" y="418" class="val">+18.1%</text>
+<text x="8" y="452" class="lab">Claude Opus 4.8 · resource constraint stance=rejected_as_untrusted_or_injection · Provenance inspection</text>
+<rect x="551.6" y="439" width="88.4" height="18" rx="3" class="neg"/>
+<text x="900" y="452" class="val">-16.9%</text>
+</svg>
