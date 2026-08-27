@@ -1250,3 +1250,110 @@ analysis/         analyzer outputs (gitignored)
 ```
 
 Install-only automatically collapses prepared cue variants to one representative (preferring clean) per base task, avoiding redundant setup tests across cue variants.
+
+## Paper-grade current synthesis and visual team pre-read
+
+The ordinary analyzer reconstructs one benchmark cohort/profile at a time:
+
+```bash
+./lab.sh analyze full all
+./lab.sh analyze resource all
+```
+
+The paper-grade **current synthesis** is a separate cross-study pipeline. It
+regenerates the canonical current statistics, findings, audit tables, scholarly
+team pre-read, and the full SVG visualization suite:
+
+```bash
+./lab.sh analyze current
+```
+
+Equivalent short form:
+
+```bash
+./lab.sh current
+```
+
+The final report is:
+
+```text
+reports/iclr-current/index.html
+```
+
+On macOS:
+
+```bash
+open reports/iclr-current/index.html
+```
+
+To rebuild only the HTML and figures from already-generated current-analysis
+outputs:
+
+```bash
+./lab.sh analyze current --report-only
+```
+
+### What `analyze current` runs
+
+```text
+26_current_preflight.py
+28_verifier_forensics.py
+30_reextract_primary_behavior.py
+32_current_analysis_fast.py
+33_findings_digest.py
+34_integrity_decomposition.py
+35_current_html.py
+36_iclr_team_preread_v2.py
+37_visual_report.py
+```
+
+The report-generation stages are presentation-only: they do not call models,
+semantic judges, verifiers, or the network.
+
+### Data required for an exact current-paper reproduction
+
+The repository contains the analysis code, but the trajectory corpus and current
+paper source lock are intentionally gitignored. A fresh clone therefore cannot
+reproduce the paper-grade report from code alone.
+
+Restore these source artifacts before running `./lab.sh analyze current`:
+
+```text
+analysis/current/source/
+├── primary/{claude,fable,codex,llama}/trials.json
+├── resource/{claude,fable,codex,llama}/trials.json
+└── replication/{claude,fable,codex,llama}/trials.json
+```
+
+The current semantic analysis also consumes the archived raw two-judge artifacts:
+
+```text
+analysis/semantic-multijudge-v1/final-repaired-llama-v1/
+analysis/semantic-resource-v1/full/production-v1.1/
+```
+
+These sources regenerate semantic consensus, semantic reliability, matched
+semantic treatment effects, and Said-X/Did-Y analyses.
+
+If collaborators instead start from raw Harbor result trees, preserve the
+complete run metadata/manifests and reconstruct the relevant per-profile cohorts
+with the ordinary analyzer. Do not silently substitute a different cohort into
+`analysis/current/source/`; the current source lock is a provenance boundary.
+
+### Generated outputs
+
+```text
+analysis/current/results/
+analysis/current/findings/
+analysis/current/audit/
+analysis/current/behavioral_claims_v2/
+
+reports/current/index.html
+reports/current/trial-explorer.html
+reports/iclr-current/index.html
+reports/iclr-current/figures/*.svg
+reports/iclr-current/visual_manifest.json
+```
+
+The partial replication remains analytically separate from PRIMARY COMPLETE and
+is never pooled into the primary treatment estimates.

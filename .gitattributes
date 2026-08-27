@@ -1,2 +1,4 @@
 reports/current/*.html linguist-generated=true
 reports/current/figures/*.svg linguist-generated=true
+reports/iclr-current/*.html linguist-generated=true
+reports/iclr-current/figures/*.svg linguist-generated=true

@@ -161,6 +161,11 @@ for name, path in REQUIRED.items():
 # ---------------------------------------------------------------------------
 
 
+def clean_generated_text(text: str) -> str:
+    """Remove trailing whitespace from generated text deterministically."""
+    return "\n".join(line.rstrip() for line in text.splitlines()).rstrip() + "\n"
+
+
 def read_csv(
     path: Path,
 ) -> list[dict[str, str]]:
@@ -3099,7 +3104,7 @@ index_html = f"""<!doctype html>
     REPORT
     / "index.html"
 ).write_text(
-    index_html,
+    clean_generated_text(index_html),
     encoding="utf-8",
 )
 
@@ -3250,7 +3255,7 @@ applyFilter();
     REPORT
     / "trial-explorer.html"
 ).write_text(
-    explorer_html,
+    clean_generated_text(explorer_html),
     encoding="utf-8",
 )
 
