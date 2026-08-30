@@ -27,6 +27,8 @@ Default full pipeline:
   7. validated integrated current report
   8. scholarly ICLR team pre-read
   9. colorful visual enhancement suite
+  10. benchmark provenance / answer-recovery audit
+  11. presentation-first team briefing HTML
 
 --report-only
   Rebuild presentation artifacts from existing analysis/current outputs.
@@ -83,7 +85,10 @@ for script in \
   34_integrity_decomposition.py \
   35_current_html.py \
   36_iclr_team_preread_v2.py \
-  37_visual_report.py
+  37_visual_report.py \
+  39_benchmark_provenance_audit.py \
+  40_benchmark_provenance_report.py \
+  38_team_briefing_html.py
 do
   require_file "$ROOT/scripts/$script"
 done
@@ -109,22 +114,31 @@ fi
 run_py 35_current_html.py
 run_py 36_iclr_team_preread_v2.py
 run_py 37_visual_report.py
+run_py 39_benchmark_provenance_audit.py
+run_py 40_benchmark_provenance_report.py
+run_py 38_team_briefing_html.py
 
 REPORT="$ROOT/reports/iclr-current/index.html"
+BRIEFING="$ROOT/reports/iclr-current/team-briefing.html"
+PROVENANCE_AUDIT="$ROOT/analysis/current/findings/benchmark_provenance_summary.csv"
 MANIFEST="$ROOT/reports/iclr-current/visual_manifest.json"
 
 require_file "$REPORT"
+require_file "$BRIEFING"
+require_file "$PROVENANCE_AUDIT"
 require_file "$MANIFEST"
 
 echo
 echo "================================================================================"
 echo "CURRENT ANALYSIS + ICLR TEAM PRE-READ: PASS"
 echo "================================================================================"
-echo "Report:   $REPORT"
-echo "Manifest: $MANIFEST"
+echo "Detailed report:  $REPORT"
+echo "Team briefing:    $BRIEFING"
+echo "Provenance audit: $PROVENANCE_AUDIT"
+echo "Manifest:         $MANIFEST"
 echo
 echo "macOS:"
-echo "  open \"$REPORT\""
+echo "  open \"$BRIEFING\""
 echo
 echo "Linux:"
-echo "  xdg-open \"$REPORT\""
+echo "  xdg-open \"$BRIEFING\""

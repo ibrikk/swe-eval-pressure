@@ -10,3 +10,12 @@ results/
 analysis/
 *.orig
 *.rej
+
+# Generated presentation/report artifacts
+/reports/
+
+# Local runtime/preflight outputs
+/results-preflight-*/
+
+# Local read-only data links used by exploratory worktrees
+/local-data/

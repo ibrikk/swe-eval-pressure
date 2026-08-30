@@ -1,9 +1,0 @@
-report_schema_version,analysis_schema_version,analysis_mode,study_signature,profile,family_name,multiplicity_method,alpha,family_size,tested_family_size,untested_family_size,unadjusted_rejections,adjusted_rejections
-1.0,2.7,resource,857af292f805a4c3,claude,resource_primary_binary_holm,holm,0.05,7,7,0,0,0
-1.0,2.7,resource,857af292f805a4c3,claude,resource_secondary_behavior_process_bh,benjamini_hochberg,0.05,23,23,0,3,1
-1.0,2.7,resource,80b3694e1af29095,codex,resource_primary_binary_holm,holm,0.05,7,7,0,4,4
-1.0,2.7,resource,80b3694e1af29095,codex,resource_secondary_behavior_process_bh,benjamini_hochberg,0.05,23,23,0,13,13
-1.0,2.7,resource,17bfd4e306e12578,fable,resource_primary_binary_holm,holm,0.05,7,7,0,5,4
-1.0,2.7,resource,17bfd4e306e12578,fable,resource_secondary_behavior_process_bh,benjamini_hochberg,0.05,23,23,0,16,15
-1.0,2.7,resource,c80c02f909871370,llama,resource_primary_binary_holm,holm,0.05,7,7,0,0,0
-1.0,2.7,resource,c80c02f909871370,llama,resource_secondary_behavior_process_bh,benjamini_hochberg,0.05,23,23,0,0,0

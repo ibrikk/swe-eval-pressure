@@ -1357,3 +1357,7 @@ reports/iclr-current/visual_manifest.json
 
 The partial replication remains analytically separate from PRIMARY COMPLETE and
 is never pooled into the primary treatment estimates.
+
+### Benchmark provenance / answer-recovery audit
+
+The current report pipeline deterministically separates generic public GitHub use from direct SWE-Atlas contamination. `exact_benchmark_solution_lookup` flags retrieval of the current task's SWE-Atlas `solution/`, `gold.patch`, or `solve.sh`. Upstream same-repository commit/patch browsing is tracked separately and is not automatically labeled benchmark cheating. Outputs are written to `analysis/current/findings/benchmark_provenance_*.csv` and rendered in `reports/iclr-current/team-briefing.html`.

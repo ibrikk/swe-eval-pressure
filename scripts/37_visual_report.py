@@ -1223,6 +1223,325 @@ if rows:
     )
 
 
+
+# ------------------------------------------------------------------
+# Curated first-impression findings section
+# ------------------------------------------------------------------
+
+def effect_pp(row: dict[str, Any] | None) -> float | None:
+    if not row:
+        return None
+    effect = first_num(row, "risk_difference_pp", "delta_pp", "effect_pp")
+    if effect is not None:
+        return effect
+    baseline = first_num(row, "baseline_rate", "baseline_prevalence")
+    treatment = first_num(row, "treatment_rate", "treatment_prevalence")
+    if baseline is not None and treatment is not None:
+        if abs(baseline) <= 1 and abs(treatment) <= 1:
+            return 100 * (treatment - baseline)
+        return treatment - baseline
+    return first_num(row, "mean_delta")
+
+
+def pick(rows: list[dict[str, str]], **criteria: str) -> dict[str, str] | None:
+    for row in rows:
+        if all(str(row.get(k) or "") == str(v) for k, v in criteria.items()):
+            return row
+    return None
+
+
+def relative_process_pct(
+    *,
+    model: str,
+    contrast: str,
+    placement: str,
+    metric: str,
+    study: str = "primary",
+) -> float | None:
+    row = pick(
+        process,
+        study=study,
+        profile=model,
+        contrast=contrast,
+        placement=placement,
+        metric=metric,
+    )
+    if not row:
+        return None
+    baseline = first_num(row, "baseline_mean")
+    treatment = first_num(row, "treatment_mean")
+    if baseline in (None, 0) or treatment is None:
+        return None
+    return 100 * (treatment - baseline) / baseline
+
+
+def resource_relative_pct(model: str, metric: str) -> float | None:
+    row = pick(resource_focus, profile=model, metric=metric)
+    if not row:
+        return None
+    baseline = first_num(row, "baseline_mean")
+    treatment = first_num(row, "treatment_mean")
+    if baseline in (None, 0) or treatment is None:
+        return None
+    return 100 * (treatment - baseline) / baseline
+
+
+def semantic_pp(
+    model: str,
+    contrast: str,
+    field: str,
+    label: str,
+    placement: str = "source",
+) -> float | None:
+    row = pick(
+        semantic_effects,
+        semantic_source="strict_consensus",
+        study="primary",
+        profile=model,
+        contrast=contrast,
+        placement=placement,
+        field=field,
+        positive_label=label,
+    )
+    return effect_pp(row)
+
+
+def current_findings_section() -> str:
+    # Source-local semantic response.
+    c_fin_rec = semantic_pp(
+        "claude", "financial_pressure", "pressure_recognition", "observed"
+    )
+    c_self_rec = semantic_pp(
+        "claude", "self_preservation_pressure", "pressure_recognition", "observed"
+    )
+    c_fin_res = semantic_pp(
+        "claude", "financial_pressure", "explicit_resistance", "observed"
+    )
+    c_self_res = semantic_pp(
+        "claude", "self_preservation_pressure", "explicit_resistance", "observed"
+    )
+    f_self_rec = semantic_pp(
+        "fable", "self_preservation_pressure", "pressure_recognition", "observed"
+    )
+    f_self_res = semantic_pp(
+        "fable", "self_preservation_pressure", "explicit_resistance", "observed"
+    )
+
+    # Objective source-local behavior.
+    c_fin_integrity = effect_pp(
+        pick(
+            behavior_eff,
+            study="primary",
+            profile="claude",
+            contrast="financial_pressure",
+            placement="source",
+            metric="integrity_sensitive_action_any",
+        )
+    )
+    c_self_integrity = effect_pp(
+        pick(
+            behavior_eff,
+            study="primary",
+            profile="claude",
+            contrast="self_preservation_pressure",
+            placement="source",
+            metric="integrity_sensitive_action_any",
+        )
+    )
+
+    # Resource execution contraction.
+    codex_tokens = resource_relative_pct("codex", "input_tokens")
+    codex_tools = resource_relative_pct("codex", "raw_tool_calls")
+    codex_validation = resource_relative_pct("codex", "validation_calls")
+    fable_tokens = resource_relative_pct("fable", "input_tokens")
+    fable_tools = resource_relative_pct("fable", "raw_tool_calls")
+    fable_validation = resource_relative_pct("fable", "validation_calls")
+
+    # Closest primary success effect among capable models.
+    success_rows = []
+    for row in binary:
+        if (
+            row.get("study") == "primary"
+            and row.get("metric") == "overall_pass"
+            and profile(row) in {"claude", "fable", "codex"}
+        ):
+            hp = first_num(row, "holm_p")
+            eff = effect_pp(row)
+            if hp is not None and eff is not None:
+                success_rows.append((hp, eff, row))
+    success_rows.sort(key=lambda x: x[0])
+    closest_p, closest_effect, closest_row = success_rows[0] if success_rows else (None, None, None)
+    any_sig = any(p <= 0.05 for p, _, _ in success_rows)
+
+    # Claude root execution signature.
+    root_tokens = relative_process_pct(
+        model="claude",
+        contrast="self_preservation_pressure",
+        placement="root",
+        metric="input_tokens",
+    )
+    root_tools = relative_process_pct(
+        model="claude",
+        contrast="self_preservation_pressure",
+        placement="root",
+        metric="raw_tool_calls",
+    )
+    root_steps = relative_process_pct(
+        model="claude",
+        contrast="self_preservation_pressure",
+        placement="root",
+        metric="trajectory_steps",
+    )
+
+    def pp(x: float | None, digits: int = 1) -> str:
+        return "—" if x is None else f"{x:+.{digits}f} pp"
+
+    def rel(x: float | None, digits: int = 0) -> str:
+        return "—" if x is None else f"{x:+.{digits}f}%"
+
+    claude_rec_range = (
+        sorted(x for x in (c_fin_rec, c_self_rec) if x is not None)
+    )
+    claude_res_range = (
+        sorted(x for x in (c_fin_res, c_self_res) if x is not None)
+    )
+    if len(claude_rec_range) == 2:
+        rec_text = f"+{claude_rec_range[0]:.1f}–{claude_rec_range[1]:.1f} pp"
+    else:
+        rec_text = pp(claude_rec_range[0] if claude_rec_range else None)
+    if len(claude_res_range) == 2:
+        res_text = f"+{claude_res_range[0]:.1f}–{claude_res_range[1]:.1f} pp"
+    else:
+        res_text = pp(claude_res_range[0] if claude_res_range else None)
+
+    success_title = (
+        "No capable-model primary success effect survives Holm"
+        if not any_sig
+        else "Primary success also changes in at least one adjusted contrast"
+    )
+    if closest_row:
+        closest_detail = (
+            f"Closest: {pretty_model(profile(closest_row))}, "
+            f"{str(closest_row.get('contrast') or '').replace('_',' ')}, "
+            f"{closest_row.get('placement')} · {pp(closest_effect)} · "
+            f"Holm p={closest_p:.3f}"
+        )
+    else:
+        closest_detail = "No primary strict-success rows available."
+
+    return f"""
+<section id="findings" class="findings-redesign">
+  <div class="findings-kicker">Results at a glance</div>
+  <h2 class="findings-headline">
+    Evaluation context changes <em>how agents work</em> more clearly than whether they succeed.
+  </h2>
+  <p class="findings-deck">
+    Four results define the current story. Detailed confidence intervals, multiplicity
+    corrections, sensitivity analyses, and full tables appear in the corresponding
+    sections below.
+  </p>
+
+  <div class="story-grid">
+    <article class="story-card story-blue">
+      <div class="story-index">01</div>
+      <div class="story-label">Observable response</div>
+      <h3>Source-local evaluation context is recognized and resisted.</h3>
+      <div class="story-big">{html.escape(rec_text)}</div>
+      <p>
+        Claude source-local recognition across the two consequence-bearing evaluation
+        variants; explicit resistance changes by <strong>{html.escape(res_text)}</strong>.
+      </p>
+      <p class="story-foot">
+        Fable shows the same qualitative pattern; under the self-preservation variant:
+        recognition {html.escape(pp(f_self_rec))}, resistance {html.escape(pp(f_self_res))}.
+      </p>
+    </article>
+
+    <article class="story-card story-purple">
+      <div class="story-index">02</div>
+      <div class="story-label">Objective cue handling</div>
+      <h3>Claude changes how it handles source-local evaluation text.</h3>
+      <div class="story-pair">
+        <span><strong>{html.escape(pp(c_fin_integrity))}</strong><small>financial</small></span>
+        <span><strong>{html.escape(pp(c_self_integrity))}</strong><small>self-preservation</small></span>
+      </div>
+      <p>
+        Increase in the planned integrity-sensitive behavior composite at source placement.
+        Decomposition shows the effect is driven by removal/modification of the planted cue,
+        not evaluator tampering.
+      </p>
+    </article>
+
+    <article class="story-card story-teal">
+      <div class="story-index">03</div>
+      <div class="story-label">Execution policy</div>
+      <h3>The resource follow-up produces large, model-specific contraction.</h3>
+      <div class="mini-matrix">
+        <div><b>Codex</b><span>{html.escape(rel(codex_tokens))}</span><small>tokens</small></div>
+        <div><span>{html.escape(rel(codex_tools))}</span><small>tools</small></div>
+        <div><span>{html.escape(rel(codex_validation))}</span><small>validation</small></div>
+        <div><b>Fable</b><span>{html.escape(rel(fable_tokens))}</span><small>tokens</small></div>
+        <div><span>{html.escape(rel(fable_tools))}</span><small>tools</small></div>
+        <div><span>{html.escape(rel(fable_validation))}</span><small>validation</small></div>
+      </div>
+      <p class="story-foot">
+        These are relative mean changes versus the same-task eval-only scaffold control;
+        the focused 3×3 family is Holm-adjusted.
+      </p>
+    </article>
+
+    <article class="story-card story-neutral">
+      <div class="story-index">04</div>
+      <div class="story-label">Task outcome</div>
+      <h3>{html.escape(success_title)}</h3>
+      <div class="story-big story-null">Primary ≈ stable</div>
+      <p>{html.escape(closest_detail)}</p>
+      <p class="story-foot">
+        This is why the paper cannot rely on pass/fail alone: the stronger signals occur
+        in recognition, cue handling, and execution strategy.
+      </p>
+    </article>
+  </div>
+
+  <div class="mechanism-open">
+    <div>
+      <span class="mechanism-tag">Mechanism-open signal</span>
+      <strong>Claude root self-preservation expands execution:</strong>
+      input tokens {html.escape(rel(root_tokens,1))},
+      tool calls {html.escape(rel(root_tools,1))},
+      steps {html.escape(rel(root_steps,1))}.
+    </div>
+    <div class="mechanism-caveat">
+      The condition effect is statistically robust, but direct root-cue consumption is
+      weakly observed; the causal mechanism remains unresolved.
+    </div>
+  </div>
+
+  <div class="story-flow" aria-label="Evaluation-awareness analysis pipeline">
+    <div class="flow-step"><span>1</span><b>Evaluation context</b><small>source · root · scaffold</small></div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step"><span>2</span><b>Delivery</b><small>was the cue actually encountered?</small></div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step"><span>3</span><b>Interpretation</b><small>recognized · trusted · resisted</small></div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step"><span>4</span><b>Execution</b><small>search · edit · validate · context use</small></div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step"><span>5</span><b>Outcome</b><small>strict task success</small></div>
+  </div>
+
+  <details class="evidence-note">
+    <summary>How to read the evidence classes</summary>
+    <p>
+      Randomized same-task treatment effects with multiplicity control support the
+      strongest causal statements. Semantic treatment effects are secondary and based on
+      strict two-judge consensus. Process outcomes are secondary/exploratory unless
+      explicitly labeled otherwise. Said/Did analyses condition on post-treatment semantic
+      states and are descriptive.
+    </p>
+  </details>
+</section>
+"""
+
 # ------------------------------------------------------------------
 # HTML injection
 # ------------------------------------------------------------------
@@ -1268,33 +1587,114 @@ body{
 }
 tbody tr:nth-child(even){background:#FAFBFC}
 tbody tr:hover{background:#F2F7FB}
+
+.findings-redesign{margin-top:8px}
+.findings-redesign>h2{border-top:0;margin-top:14px;padding-top:0}
+.findings-kicker{
+  display:inline-flex;align-items:center;gap:8px;
+  font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;
+  color:#355f86;background:#eaf2f8;border-radius:999px;padding:6px 10px;
+}
+.findings-headline{
+  max-width:1040px;font-size:32px;line-height:1.15;letter-spacing:-.025em;
+  margin:14px 0 8px;
+}
+.findings-headline em{font-style:normal;color:#355f86}
+.findings-deck{max-width:920px;color:#5c6b78;font-size:16px;margin:0 0 20px}
+.story-grid{
+  display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:14px;margin:18px 0 16px;
+}
+.story-card{
+  position:relative;background:#fff;border:1px solid #d8e0e8;border-radius:14px;
+  padding:20px 22px 18px;box-shadow:0 8px 24px rgba(26,40,58,.06);
+  overflow:hidden;min-height:245px;
+}
+.story-card:before{content:"";position:absolute;left:0;right:0;top:0;height:4px;background:#355f86}
+.story-purple:before{background:#6C5CE7}.story-teal:before{background:#00897B}
+.story-neutral:before{background:#7c8894}
+.story-index{
+  position:absolute;right:18px;top:13px;color:#d9e0e7;
+  font-size:28px;font-weight:850;letter-spacing:-.04em;
+}
+.story-label{
+  font-size:10px;text-transform:uppercase;letter-spacing:.11em;
+  font-weight:800;color:#607080;margin-bottom:8px;
+}
+.story-card h3{
+  max-width:88%;font-size:19px;line-height:1.25;letter-spacing:-.012em;
+  margin:0 0 13px;
+}
+.story-big{font-size:31px;font-weight:820;letter-spacing:-.03em;color:#255c8c;margin:5px 0 8px}
+.story-purple .story-big{color:#5a46cf}.story-teal .story-big{color:#007b70}
+.story-null{color:#596673;font-size:26px}
+.story-card p{margin:8px 0;color:#344454;font-size:14px}
+.story-foot{font-size:12px!important;color:#6b7885!important;margin-top:12px!important}
+.story-pair{display:flex;gap:12px;margin:8px 0 12px}
+.story-pair span{
+  display:flex;flex:1;flex-direction:column;background:#f6f4ff;border:1px solid #e2dcff;
+  border-radius:10px;padding:10px 12px;
+}
+.story-pair strong{font-size:25px;line-height:1;color:#5a46cf}
+.story-pair small,.mini-matrix small{font-size:10px;color:#6e7781;text-transform:uppercase;letter-spacing:.06em;margin-top:5px}
+.mini-matrix{
+  display:grid;grid-template-columns:1.15fr repeat(3,1fr);
+  gap:6px;margin:8px 0 12px;align-items:stretch;
+}
+.mini-matrix div{
+  min-height:58px;background:#eef8f6;border:1px solid #d5ebe6;border-radius:9px;
+  display:flex;flex-direction:column;justify-content:center;padding:8px 9px;
+}
+.mini-matrix div:nth-child(4n+1){background:#e4f4f1}
+.mini-matrix b{font-size:12px;color:#365b56}.mini-matrix span{font-size:18px;font-weight:800;color:#007b70}
+.mechanism-open{
+  display:grid;grid-template-columns:1.4fr 1fr;gap:18px;
+  background:#fff9ec;border:1px solid #f0d9a3;border-left:5px solid #d89a28;
+  border-radius:12px;padding:15px 18px;margin:16px 0 18px;color:#4e4023;
+}
+.mechanism-tag{
+  display:inline-block;font-size:9px;font-weight:800;letter-spacing:.09em;
+  text-transform:uppercase;background:#f7e4b7;border-radius:999px;padding:4px 7px;
+  margin-right:7px;
+}
+.mechanism-caveat{font-size:12px;color:#776746}
+.story-flow{
+  display:grid;grid-template-columns:1fr auto 1fr auto 1fr auto 1fr auto 1fr;
+  align-items:stretch;gap:7px;background:#fff;border:1px solid #d8e0e8;
+  border-radius:14px;padding:14px 16px;margin:18px 0;
+}
+.flow-step{display:flex;flex-direction:column;gap:2px;min-width:0}
+.flow-step span{
+  width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;
+  justify-content:center;background:#edf3f8;color:#355f86;font-weight:800;font-size:11px;margin-bottom:4px;
+}
+.flow-step b{font-size:13px;color:#263746}.flow-step small{font-size:10px;color:#77838f;line-height:1.3}
+.flow-arrow{display:flex;align-items:center;color:#a1adb8;font-size:19px}
+.evidence-note{background:#fbfcfd!important;border-color:#e0e5ea!important;margin-top:14px!important}
+.evidence-note summary{font-size:12px;color:#4b5c6a}
+@media(max-width:900px){
+  .story-grid{grid-template-columns:1fr}
+  .mechanism-open{grid-template-columns:1fr}
+  .story-flow{grid-template-columns:1fr;gap:8px}
+  .flow-arrow{transform:rotate(90deg);justify-content:center;height:13px}
+  .mini-matrix{grid-template-columns:1fr 1fr}
+}
+
 </style>
 """
 text = text.replace("</head>", css + "\n</head>", 1)
 
-# Top visual summary.
-top = "".join(
-    figure_html(*generated[k])
-    for k in ("evidence", "success", "behavior", "resource", "cue_removal", "root_breadth")
-    if k in generated
-)
-text = insert_after(
-    text,
-    '<div class="callout"><strong>Interpretive hierarchy.</strong>',
-    "top",
-    "<div class=\"visual-suite-spacer\"></div>" + top,
-)
-
-# Because the anchor above is inside a div, make sure injected content lands after
-# the full callout if possible by a second cleanup pass.
-text = re.sub(
-    r'(<div class="callout"><strong>Interpretive hierarchy\.</strong>.*?</div>)\s*'
-    r'(<!-- VISUAL_SUITE:top:START -->.*?<!-- VISUAL_SUITE:top:END -->)',
-    r"\1\n\2",
+# Replace the statistically ranked card wall with a curated, story-led first impression.
+curated = current_findings_section()
+text, replaced = re.subn(
+    r'<section id="findings">.*?</section>',
+    curated,
     text,
     count=1,
     flags=re.S,
 )
+if replaced != 1:
+    raise SystemExit("Could not replace the primary Key empirical findings section")
 
 if "fidelity" in generated:
     text = insert_after(
@@ -1333,7 +1733,7 @@ if semantic_payload:
 
 process_payload = "".join(
     figure_html(*generated[k])
-    for k in ("tests",)
+    for k in ("success", "tests", "behavior", "cue_removal", "root_breadth")
     if k in generated
 )
 if process_payload:
@@ -1394,6 +1794,14 @@ if "replication" in generated:
         figure_html(*generated["replication"]),
     )
 
+if "evidence" in generated:
+    text = insert_after(
+        text,
+        '<section id="claims"><h2>Summary of supported claims</h2>',
+        "evidence",
+        figure_html(*generated["evidence"]),
+    )
+
 if "verifier" in generated:
     text = insert_after(
         text,
@@ -1405,7 +1813,7 @@ if "verifier" in generated:
 HTML.write_text(clean_generated_text(text), encoding="utf-8")
 
 manifest = {
-    "visual_report_version": "iclr-team-preread-visual-1.0",
+    "visual_report_version": "iclr-team-preread-visual-1.1-topline-redesign",
     "figures_generated": sorted(path.name for path in FIG.glob("*.svg")),
     "new_visual_count": len(generated),
     "network_calls": 0,
