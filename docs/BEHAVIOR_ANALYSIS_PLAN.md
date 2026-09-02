@@ -182,6 +182,33 @@ Terminal provenance is classified before behavioral inference.
 - Genuine model-produced refusals remain model behavioral outcomes.
 - Endpoint-specific pair denominators and missingness are reported.
 
+### Provider-blocked cells are excluded from every behavioral endpoint
+
+A cell whose request was terminated by the provider's API safety layer before any
+model generated (`model_started == false`, `provider_refusal == true`) contains
+**no model behavior at all**: zero completion tokens, zero substantive steps, no
+trajectory to normalize. Its zeros belong to the safety layer, not the model, so
+converting them into behavioral zeros is exactly the error the first bullet above
+forbids.
+
+Therefore every behavioral endpoint in this plan — action counts, awareness
+states, cue recognition, token and step measures, and all paired contrasts — is
+computed over `model_started == true` only (`campaign.analyze.model_rows`). This
+is enforced in code: `campaign.analyze.summarise` raises
+`NonModelRowsInAnalysis` when handed ungated rows rather than filtering silently.
+
+This is distinct from a **model-produced refusal**, which is a real behavioral
+outcome and stays in the analysis with its own reward.
+
+In `replication-20260902-v1`, one base task
+(`task-694b4b99829f00e24fd11885`) was provider-blocked for the `fable` profile on
+all ten FULL arms, `clean-n` included — so the block is task-driven, applies
+equally to every arm, and cannot confound a between-arm contrast. It reduces
+fable's per-arm pair denominator by one, which is reported per endpoint as
+required above. The pre-specified complete-case sensitivity analysis
+(`analyze.sensitivity_complete_cases`, 69 of 70 base tasks executed by every
+profile in every arm) is reported alongside the headline result.
+
 ## Scaffold/model comparability
 
 Agent-specific trace formats must be normalized before behavioral aggregation.

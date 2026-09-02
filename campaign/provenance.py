@@ -81,15 +81,25 @@ def cmd_record(args) -> int:
         counts[t.status] = counts.get(t.status, 0) + 1
 
     complete = counts.get(lib.STATUS_COMPLETE, 0)
+    # A provider block is an EXPLICIT outcome, not an outstanding cell: the
+    # request reached the vendor and the vendor's stack terminated it. Refusing
+    # to accept the attempt would leave the shard permanently un-closeable and
+    # push the operator toward re-running the block until it complies, which is
+    # exactly the outcome-conditioned acceptance the campaign forbids. It is
+    # counted here and reported separately everywhere downstream.
+    blocked = counts.get(lib.STATUS_PROVIDER_BLOCKED, 0)
+    accepted = complete + blocked
     status = args.status
     if status == "auto":
-        status = "complete" if complete == cell.expected_trials and len(trials) == cell.expected_trials else "failed"
+        status = "complete" if accepted == cell.expected_trials and len(trials) == cell.expected_trials else "failed"
 
     meta = {}
     for d in run_dirs:
         meta = lib.jload(d / "run_metadata.json") or meta
     versions = sorted({t.agent_version for t in trials if t.agent_version})
-    models = sorted({t.model_name for t in trials if t.model_name})
+    # Only trials where a model actually generated can testify to which model
+    # ran; a blocked trial carries the safety layer's placeholder name.
+    models = sorted({t.model_name for t in trials if t.model_name and t.model_started})
 
     existing = _load_attempts(paths["attempts"])
     attempt_id = f"{cell.mode}-{cell.profile}-s{cell.shard_index}-a{sum(1 for e in existing if e['cell'] == cell.key) + 1:02d}"
@@ -113,6 +123,9 @@ def cmd_record(args) -> int:
         "finished_at": args.finished_at or lib.now_iso(),
         "expected_trials": cell.expected_trials,
         "observed_trials": len(trials),
+        "accepted_observations": accepted,
+        "model_observations": complete,
+        "provider_blocked": blocked,
         "status_counts": counts,
         "status": status,
         "superseded_by": None,
@@ -210,6 +223,15 @@ def cmd_build(args) -> int:
                 "steps": t.steps,
                 "reward": t.reward, "resolved": t.resolved,
                 "shard_index": a["shard_index"],
+                # Design coordinates travel with every row, blocked ones
+                # included, so a blocked cell keeps its address in the design.
+                **lib.arm_factors(a["mode"], t.arm),
+                # The analysis gate. Rows with model_started False carry no
+                # model behaviour and are excluded from every behavioural
+                # statistic; see campaign.analyze.model_rows.
+                "model_started": t.model_started,
+                "provider_refusal": t.provider_refusal,
+                "provider_refusal_category": t.provider_refusal_category,
             })
 
     # FAIL CLOSED. A duplicate is skipped rather than deduped, which can leave a
@@ -222,10 +244,20 @@ def cmd_build(args) -> int:
             paths["corpus"].unlink()
     else:
         paths["corpus"].write_text("".join(json.dumps(r) + "\n" for r in rows))
+    blocked_rows = [r for r in rows if r["status"] == lib.STATUS_PROVIDER_BLOCKED]
+    model_rows = [r for r in rows if r["model_started"]]
     out = {
         "campaign_id": lib.CAMPAIGN_ID, "built_at": lib.now_iso(),
         "cells_complete": doc["cells_complete"], "cells_expected": doc["cells_expected"],
         "trials": 0 if errors else len(rows), "rows_scanned": len(rows),
+        # Reported separately, always. `accepted_observations` says the corpus
+        # is rectangular; `model_observations` says how much of it is model
+        # behaviour. Never quote the first where the second is meant.
+        "accepted_observations": 0 if errors else len(rows),
+        "model_observations": 0 if errors else len(model_rows),
+        "provider_blocked": 0 if errors else len(blocked_rows),
+        "provider_blocked_categories": sorted(
+            {r["provider_refusal_category"] for r in blocked_rows}),
         "errors": errors, "ok": not errors,
         "corpus": str(paths["corpus"].relative_to(lib.PROJECT_ROOT)),
     }

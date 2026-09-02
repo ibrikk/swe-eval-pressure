@@ -465,10 +465,12 @@ from campaign import cells
 mode, shard = sys.argv[1], int(sys.argv[2])
 res = cells.audit(mode, shard)
 v = cells.validate_shard_complete(res)
-print(f"  complete_valid   {v['complete_valid']} / {v['expected']}")
-print(f"  provider_blocked {v['provider_blocked']}")
-print(f"  accounted        {v['accounted']} / {v['expected']}")
-print(f"  outstanding      {v['outstanding_total']}")
+print(f"  accepted observations  {v['accepted_observations']} / {v['expected']}")
+print(f"    model observations   {v['model_observations']}")
+print(f"    provider blocked     {v['provider_blocked']}"
+      "   (stack outcome; NOT a model-generated refusal)")
+print(f"  missing                {v['missing']}")
+print(f"  outstanding            {v['outstanding_total']}")
 for p in v["problems"]:
     print(f"  ! {p}")
 PY

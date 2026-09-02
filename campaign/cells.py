@@ -90,6 +90,11 @@ CLASSES = (COMPLETE_VALID, PRE_MODEL_FAILURE, PARTIAL_MODEL_FAILURE,
 # Everything that is not COMPLETE_VALID needs the cell to be re-run --
 # except PROVIDER_BLOCKED, which is terminal in both directions (see below).
 NEEDS_REPAIR = (PRE_MODEL_FAILURE, PARTIAL_MODEL_FAILURE, MISSING, OTHER_INVALID)
+# The two ways an expected cell can hold a final, explicit outcome. Every cell
+# in the delivered corpus must be one of these -- that is what "rectangular"
+# means here. They are reported as SEPARATE numbers and never summed into a
+# single "trials" figure, because only COMPLETE_VALID is a model observation.
+ACCEPTED_STATUSES = (COMPLETE_VALID, PROVIDER_BLOCKED)
 
 
 @dataclass(frozen=True)
@@ -131,6 +136,11 @@ class Observation:
     started_at: str = ""
     finished_at: str = ""
     path: str = ""
+    # Explicit, never inferred downstream: `model_started` is the gate every
+    # model-behaviour analysis must pass through.
+    model_started: bool = False
+    provider_refusal: bool = False
+    provider_refusal_category: str = ""
 
     def as_dict(self):
         return asdict(self)
@@ -150,13 +160,38 @@ class CellRecord:
     def needs_repair(self) -> bool:
         return self.status in NEEDS_REPAIR
 
+    @property
+    def accepted(self) -> bool:
+        """Does this cell hold an explicit, final outcome?
+
+        The accepted set is COMPLETE_VALID + PROVIDER_BLOCKED. Both are observed
+        outcomes of the deployed stack; only the first is a model observation.
+        """
+        return self.status in ACCEPTED_STATUSES
+
+    @property
+    def model_started(self) -> bool:
+        """True only if a model actually generated for this cell."""
+        return self.status == COMPLETE_VALID
+
     def as_dict(self):
         d = self.cell.as_dict()
+        # The design factors travel WITH the row, including for blocked cells:
+        # a cell with no model output still occupies its place in the design and
+        # must stay addressable by condition / channel / pressure kind.
+        d.update(lib.arm_factors(self.cell.mode, self.cell.arm))
+        blocked = self.status == PROVIDER_BLOCKED
+        refusals = [o for o in self.observations if o.provider_refusal]
         d.update({
             "cell_key": self.cell.key,
             "task_dir": self.cell.task_dir,
             "status": self.status,
             "reason": self.reason,
+            "accepted": self.accepted,
+            "model_started": self.model_started,
+            "provider_refusal": blocked,
+            "provider_refusal_category": (
+                refusals[0].provider_refusal_category if blocked and refusals else ""),
             "needs_repair": self.needs_repair,
             "failure_class": self.failure_class,
             "repair_outlook": self.repair_outlook,
@@ -221,38 +256,12 @@ def _budget_censored(trial_path: Path) -> bool:
     return any(m.lower() in low for m in lib.BUDGET_MARKERS)
 
 
-# Markers the safety layer leaves in the agent log when it answers in the
-# model's place. `stop_reason` alone is not enough: a model that stops to
-# refuse in its own words can carry the same reason with real output.
-_REFUSAL_LOG_MARKERS = ("model_refusal_no_fallback", "api_refusal_category")
-_REFUSAL_EXCEPTIONS = ("safetyrefusal", "agentsafetyrefusal")
-
-
-def _provider_refusal_evidence(trial_path: Path, traj: dict, result: dict) -> str:
-    """Why this trial looks like an API-layer block, or "" if it does not.
-
-    Evidence only -- the caller decides. Whether the block replaced the model is
-    settled by the completion-token count, not by anything found here.
-    """
-    exc = str(((result.get("exception_info") or {}).get("exception_type")) or "")
-    if any(m in exc.lower().replace("_", "") for m in _REFUSAL_EXCEPTIONS):
-        return f"agent raised {exc}"
-    for step in traj.get("steps") or ():
-        if not isinstance(step, dict):
-            continue
-        if str(((step.get("extra") or {}).get("stop_reason")) or "") == "refusal":
-            return "trajectory step carries stop_reason 'refusal'"
-    agent_dir = trial_path / "agent"
-    if agent_dir.is_dir():
-        for log in sorted(agent_dir.glob("*.txt")):
-            try:
-                text = log.read_text(errors="replace")
-            except OSError:
-                continue
-            for marker in _REFUSAL_LOG_MARKERS:
-                if marker in text:
-                    return f"agent log {log.name} records {marker}"
-    return ""
+# The detection primitive lives in `lib` so that the corpus builder
+# (`lib.scan_run_dir`) and this classifier can never disagree about what a
+# provider block IS. One definition, two callers.
+_REFUSAL_LOG_MARKERS = lib.REFUSAL_LOG_MARKERS
+_REFUSAL_EXCEPTIONS = lib.REFUSAL_EXCEPTIONS
+_provider_refusal_evidence = lib.provider_refusal_evidence
 
 
 def classify_observation(trial_path: Path, *, campaign_root: Path | None = None
@@ -300,6 +309,9 @@ def classify_observation(trial_path: Path, *, campaign_root: Path | None = None
             f"provider refused before the model generated anything ({refusal}; "
             f"model {obs.model_name!r}, 0 completion tokens) - not an "
             "observation, and not retryable without biasing acceptance")
+        obs.provider_refusal = True
+        obs.provider_refusal_category = lib.provider_refusal_category(trial_path)
+        obs.model_started = False
         return obs
     if "synthetic" in obs.model_name.lower() or not obs.model_name:
         obs.status, obs.reason = OTHER_INVALID, (
@@ -310,6 +322,7 @@ def classify_observation(trial_path: Path, *, campaign_root: Path | None = None
         return obs
 
     produced_output = obs.completion_tokens > 0
+    obs.model_started = produced_output
     agent_exec = result.get("agent_execution") or {}
     verifier = result.get("verifier") or {}
     verdict_reached = bool(verifier.get("finished_at")) and obs.reward is not None
@@ -455,6 +468,13 @@ def audit(mode: str, shard: int, *, profiles=None, paths=None) -> dict:
         "duplicates": duplicates,
         "unmapped_trials": unmapped,
         "repair_required": sum(1 for r in records.values() if r.needs_repair),
+        # The three numbers that must always be read together. Reporting a
+        # single "observations" total would silently merge 10 cells where no
+        # model ran into 1,190 where one did.
+        "accepted_observations": sum(1 for r in records.values() if r.accepted),
+        "model_observations": sum(1 for r in records.values() if r.model_started),
+        "provider_blocked": int(counts.get(PROVIDER_BLOCKED, 0)),
+        "missing": int(counts.get(MISSING, 0)),
         "records": records,
     }
 
@@ -668,12 +688,22 @@ def validate_shard_complete(result: dict, *, expect: int | None = None) -> dict:
         problems.append(f"{len(multi)} cell(s) have more than one valid trajectory")
     if result["unmapped_trials"]:
         problems.append(f"{len(result['unmapped_trials'])} trial(s) map to no expected cell")
+    missing = sorted(k for k, r in recs.items() if r.status == MISSING)
+    if missing:
+        problems.append(f"{len(missing)} expected cell(s) have no observation at all")
     return {
         "ok": not problems,
         "expected": expect,
         "complete_valid": len(complete),
+        # Aliases with the reporting names. `accepted_observations` is the
+        # rectangularity number (must equal `expected`); `model_observations` is
+        # the analysable-data number. They are NOT the same quantity and the
+        # gap between them is exactly the provider-blocked count.
+        "accepted_observations": len(complete) + len(blocked),
+        "model_observations": len(complete),
         "provider_blocked": len(blocked),
         "provider_blocked_cells": blocked,
+        "missing": len(missing),
         "accounted": len(complete) + len(blocked),
         # True only when every cell is a real model observation.
         "full_corpus": not problems and not blocked,
@@ -760,8 +790,18 @@ def render_summary(result: dict) -> str:
     ]
     for name in CLASSES:
         lines.append(f"{name:<22} {c[name]:>6}")
-    lines += ["", f"repair required        {result['repair_required']:>6}", "",
-              f"{'profile':<9} " + " ".join(f"{n[:9]:>9}" for n in CLASSES)]
+    lines += [
+        "",
+        f"accepted observations  {result['accepted_observations']:>6}"
+        f"   (of {result['expected']} expected cells)",
+        f"  model observations   {result['model_observations']:>6}"
+        f"   (a model generated)",
+        f"  provider blocked     {result['provider_blocked']:>6}"
+        f"   (stack outcome, NOT a model-generated refusal)",
+        f"missing                {result['missing']:>6}",
+        "",
+        f"repair required        {result['repair_required']:>6}", "",
+        f"{'profile':<9} " + " ".join(f"{n[:9]:>9}" for n in CLASSES)]
     for p, cc in result["counts_by_profile"].items():
         lines.append(f"{p:<9} " + " ".join(f"{cc[n]:>9}" for n in CLASSES))
     outlook = Counter(r.repair_outlook for r in result["records"].values()

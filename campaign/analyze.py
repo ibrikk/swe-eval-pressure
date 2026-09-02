@@ -11,6 +11,41 @@ archived abort and a repair run, then deduped by task_name. That silently
 substituted salvaged trials for missing ones and made the corpus look complete.
 Here there is no glob, no path argument, no dedupe, and no fallback: if the
 validator has not signed off on 3,640 fresh trials, analysis does not run.
+
+TWO POPULATIONS, NEVER POOLED
+-----------------------------
+The corpus holds every expected cell, but not every cell has a model behind it.
+`provider_blocked` rows are outcomes of the deployed STACK: the vendor's safety
+layer terminated the request before any model generated. They are real data
+about the stack and they keep the design rectangular, but they contain zero
+model behaviour.
+
+So this module exposes two accessors and no third way in:
+
+  stack_rows(rows)  every accepted observation -- use for end-to-end stack
+                    questions (did the deployed system produce a solution?)
+  model_rows(rows)  model_started only -- REQUIRED for anything about model
+                    behaviour, reasoning, cue recognition, pressure response,
+                    tokens, tools or trajectory shape
+
+Every behavioural statistic below is computed on `model_rows`. Passing raw rows
+to those functions raises: a mean over a blocked row would average in a token
+count, step count and reward that no model produced.
+
+THE 2026-09-02 BLOCK, AND THE SENSITIVITY ANALYSIS IT REQUIRES
+--------------------------------------------------------------
+One of the 70 base tasks (a TruffleHog credential-detector consolidation) was
+blocked by fable's provider content filter on ALL TEN of its FULL arms --
+including `clean-n`, which carries no cue and no injected content. The block is
+therefore a property of the TASK, not of the pressure treatment: it cannot
+confound a between-arm comparison, because it removed every arm equally.
+
+It does make fable's per-arm n one lower than the other profiles'. To show that
+this unbalanced cell is not driving anything, `sensitivity_complete_cases`
+re-runs the same summary over only those base tasks where EVERY profile and arm
+produced a model observation -- 69 of 70 as of the block. It is pre-specified,
+not chosen after seeing the results, and it reproduces exactly the estimand a
+task replacement would have bought, at zero cost to the corpus.
 """
 from __future__ import annotations
 
@@ -65,6 +100,44 @@ def load_corpus(paths) -> list[dict]:
     return rows
 
 
+class NonModelRowsInAnalysis(Exception):
+    """Raised when model-behaviour code is handed a row with no model behind it."""
+
+
+def stack_rows(rows: list[dict]) -> list[dict]:
+    """Every accepted observation: the deployed stack's end-to-end outcomes.
+
+    Includes provider-blocked cells. Correct for "did the shipped system solve
+    the task"; WRONG for anything about the model.
+    """
+    return [r for r in rows if r.get("status") in lib.ACCEPTED_STATUSES]
+
+
+def model_rows(rows: list[dict]) -> list[dict]:
+    """Only cells where a model actually generated.
+
+    THE gate for every behavioural analysis. Not a filter for convenience: a
+    provider-blocked row has 0 completion tokens, 0 steps and reward 0 that
+    belong to the safety layer, and pooling it with model output would report
+    model behaviour that never occurred.
+    """
+    return [r for r in rows if r.get("model_started")]
+
+
+def require_model_rows(rows: list[dict]) -> list[dict]:
+    """Assert the caller already applied the gate. Fail loud, never filter."""
+    intruders = [r for r in rows if not r.get("model_started")]
+    if intruders:
+        raise NonModelRowsInAnalysis(
+            f"{len(intruders)} row(s) with model_started=false reached a "
+            f"model-behaviour analysis (e.g. "
+            f"{[r.get('trial_dir') for r in intruders[:3]]}). Model behaviour, "
+            f"reasoning, cue recognition, pressure response, token, tool and "
+            f"trajectory analyses must be run on analyze.model_rows(rows). "
+            f"Use analyze.stack_rows(rows) for end-to-end stack questions.")
+    return rows
+
+
 def _rate(rows, pred) -> float | None:
     if not rows:
         return None
@@ -76,6 +149,8 @@ def _resolved(row) -> bool:
 
 
 def summarise(rows: list[dict]) -> dict:
+    """Behavioural summary. `rows` MUST already be model_rows(...)."""
+    require_model_rows(rows)
     by_mode_profile_arm: dict[tuple, list] = defaultdict(list)
     by_mode_profile: dict[tuple, list] = defaultdict(list)
     for r in rows:
@@ -116,6 +191,7 @@ def summarise(rows: list[dict]) -> dict:
     return {
         "campaign_id": lib.CAMPAIGN_ID,
         "generated_at": lib.now_iso(),
+        "population": "model_observations",
         "n_trials": len(rows),
         "expected_trials": lib.expected_totals()["campaign_total"],
         "by_mode": dict(Counter(r["mode"] for r in rows)),
@@ -129,6 +205,94 @@ def summarise(rows: list[dict]) -> dict:
             "executed trajectories; no FULL trajectory is pooled in."
         ),
     }
+
+
+def stack_outcomes(rows: list[dict]) -> dict:
+    """End-to-end outcomes of the DEPLOYED STACK, blocked cells included.
+
+    The only place a provider-blocked cell contributes to a rate. The question
+    here is "did the shipped system deliver a solution", and a vendor safety
+    block is a genuine way for it not to -- so excluding those cells would
+    flatter the stack. Reported alongside, never merged with, the model figures.
+    """
+    acc = stack_rows(rows)
+    by: dict[tuple, list] = defaultdict(list)
+    for r in acc:
+        by[(r["mode"], r["profile"])].append(r)
+    out = []
+    for (mode, profile), group in sorted(by.items()):
+        blocked = [r for r in group if r.get("provider_refusal")]
+        out.append({
+            "mode": mode,
+            "profile": profile,
+            "accepted_observations": len(group),
+            "model_observations": sum(1 for r in group if r.get("model_started")),
+            "provider_blocked": len(blocked),
+            "provider_blocked_categories": sorted(
+                {r.get("provider_refusal_category") or "" for r in blocked}),
+            # Denominator is every accepted cell, so a blocked cell counts as an
+            # unsolved task for the stack -- which is what it was.
+            "stack_resolved_rate": _rate(group, _resolved),
+        })
+    return {
+        "note": (
+            "Stack-level view. Provider-blocked cells are counted as observed "
+            "stack failures (no solution delivered). They are NOT model "
+            "refusals and contribute to no model-behaviour statistic."),
+        "by_mode_profile": out,
+    }
+
+
+def complete_case_base_tasks(rows: list[dict]) -> list[str]:
+    """Base tasks where EVERY expected cell is a model observation.
+
+    A base task is dropped only if some (profile, arm) cell of it has no model
+    behind it -- the same criterion for every profile, so the surviving set is
+    identical across models and no model is compared on a different task set.
+    """
+    expected: dict[str, set] = defaultdict(set)
+    observed: dict[str, set] = defaultdict(set)
+    for r in rows:
+        key = (r["mode"], r["profile"], r["arm"])
+        expected[r["base_task_id"]].add(key)
+        if r.get("model_started"):
+            observed[r["base_task_id"]].add(key)
+    return sorted(b for b, want in expected.items() if observed[b] == want)
+
+
+def sensitivity_complete_cases(rows: list[dict]) -> dict:
+    """Pre-specified complete-case sensitivity analysis.
+
+    Re-runs the whole behavioural summary over only the base tasks that every
+    profile and arm executed. This is the estimand replacing the blocked task
+    would have produced -- a perfectly balanced design across models -- obtained
+    without discarding 30 valid trajectories or re-deriving the global cue
+    assignment. If the headline conclusions hold here too, the one unbalanced
+    base task is not driving them.
+
+    Pre-specified means exactly that: the criterion is "every cell executed",
+    fixed before the numbers were read, and not tuned to any result.
+    """
+    keep = set(complete_case_base_tasks(rows))
+    dropped = sorted({r["base_task_id"] for r in rows} - keep)
+    subset = [r for r in model_rows(rows) if r["base_task_id"] in keep]
+    doc = summarise(subset) if subset else {"n_trials": 0}
+    doc.update({
+        "population": "model_observations_complete_case",
+        "base_tasks_included": len(keep),
+        "base_tasks_total": len(keep) + len(dropped),
+        "base_tasks_dropped": dropped,
+        "drop_reason": {
+            b: sorted({f"{r['profile']}/{r['mode']}/{r['arm']}"
+                       for r in rows
+                       if r["base_task_id"] == b and not r.get("model_started")})
+            for b in dropped},
+        "note": (
+            "Complete-case sensitivity analysis over base tasks executed by "
+            "every profile in every arm. Pre-specified; the same task set is "
+            "used for all models."),
+    })
+    return doc
 
 
 def cross_mode_leak_check(rows: list[dict]) -> dict:
@@ -158,7 +322,19 @@ def main() -> int:
     report = require_validated(paths)
     rows = load_corpus(paths)
 
-    summary = summarise(rows)
+    # The gate, applied once at the entry point. Everything behavioural below
+    # runs on `behaviour`; `rows` itself is used only for accounting, the
+    # stack-level view and the leak check, which are about cells, not models.
+    behaviour = model_rows(rows)
+    summary = summarise(behaviour)
+    summary["accounting"] = {
+        "accepted_observations": len(stack_rows(rows)),
+        "model_observations": len(behaviour),
+        "provider_blocked": sum(1 for r in rows if r.get("provider_refusal")),
+        "expected_cells": lib.expected_totals()["campaign_total"],
+    }
+    summary["stack_outcomes"] = stack_outcomes(rows)
+    summary["sensitivity_complete_cases"] = sensitivity_complete_cases(rows)
     leaks = cross_mode_leak_check(rows)
     summary["cross_mode_leak_check"] = leaks
 
@@ -170,9 +346,19 @@ def main() -> int:
         lib.eprint("ANALYSIS FAILED: cross-mode leakage detected.")
         return 1
 
+    acct = summary["accounting"]
     lib.eprint(
-        f"[analyze] {summary['n_trials']}/{summary['expected_trials']} trials, "
+        f"[analyze] {acct['accepted_observations']}/{acct['expected_cells']} "
+        f"accepted observations = {acct['model_observations']} model + "
+        f"{acct['provider_blocked']} provider-blocked; behavioural statistics "
+        f"use the {summary['n_trials']} model observations only; "
         f"validated at {report.get('generated_at')}"
+    )
+    sens = summary["sensitivity_complete_cases"]
+    lib.eprint(
+        f"[analyze] complete-case sensitivity: "
+        f"{sens['base_tasks_included']}/{sens['base_tasks_total']} base tasks "
+        f"executed by every profile in every arm"
     )
     lib.eprint(f"[analyze] wrote {out.relative_to(lib.PROJECT_ROOT)}")
     if args.json:

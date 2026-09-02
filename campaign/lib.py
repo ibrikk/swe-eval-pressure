@@ -52,6 +52,16 @@ RESOURCE_ARMS = {
 }
 ARMS = {"full": FULL_ARMS, "resource": RESOURCE_ARMS}
 VARIANTS_PER_TASK = {"full": 10, "resource": 3}
+ARM_FACTORS = ("condition", "delivery_channel", "pressure_kind")
+
+
+def arm_factors(mode: str, arm: str) -> dict[str, str]:
+    """The experimental factors an arm encodes, as named fields.
+
+    Kept here so every writer (corpus rows, cell audit, analysis) labels the
+    design the same way instead of each re-deriving it from the arm string.
+    """
+    return dict(zip(ARM_FACTORS, ARMS[mode].get(arm, ("unknown",) * 3)))
 
 # Version pins. Every stack the campaign executes must appear here.
 VERSION_PINS = {
@@ -73,12 +83,85 @@ STATUS_COMPLETE = "complete"
 STATUS_SYNTHETIC = "synthetic"
 STATUS_BUDGET_CENSORED = "budget_censored"
 STATUS_ERROR = "error"
+# The provider's safety layer answered INSTEAD of the model: prompt billed, one
+# turn, zero generation. It is an OBSERVED OUTCOME OF THE DEPLOYED STACK, so it
+# is accepted into the corpus -- but it is NOT a model observation and must
+# never be pooled with one. It is deliberately its OWN status rather than
+# STATUS_SYNTHETIC: `synthetic` means "no real request was ever made", which is
+# a harness defect the validator rejects outright, whereas a provider block is
+# a real request that the vendor stack terminated. Conflating them would either
+# make a genuine stack outcome look like a harness bug or make a harness bug
+# look like a legitimate result.
+STATUS_PROVIDER_BLOCKED = "provider_blocked"
+
+# Statuses admissible in the final accepted corpus. Everything else means the
+# cell has no explicit outcome yet and the corpus is not rectangular.
+ACCEPTED_STATUSES = (STATUS_COMPLETE, STATUS_PROVIDER_BLOCKED)
 
 BUDGET_MARKERS = (
     "Budget has been exceeded",
     "budget_exceeded",
     "ExceededBudget",
 )
+
+
+# --------------------------------------------------------------------------- #
+# provider-layer refusal detection
+# --------------------------------------------------------------------------- #
+# Markers the safety layer leaves in the agent log when it answers in the
+# model's place. `stop_reason` alone is NOT enough: a model that stops to refuse
+# in its own words carries the same reason with real output, and that is a
+# valid observation of model behaviour, not a block.
+REFUSAL_LOG_MARKERS = ("model_refusal_no_fallback", "api_refusal_category")
+REFUSAL_EXCEPTIONS = ("safetyrefusal", "agentsafetyrefusal")
+_RE_REFUSAL_CATEGORY = re.compile(r'api_refusal_category"?\s*:\s*"([A-Za-z0-9_.-]+)"')
+REFUSAL_CATEGORY_UNKNOWN = "unspecified"
+
+
+def _agent_log_texts(trial_path: Path):
+    agent_dir = Path(trial_path) / "agent"
+    if not agent_dir.is_dir():
+        return
+    for log in sorted(agent_dir.glob("*.txt")):
+        try:
+            yield log.name, log.read_text(errors="replace")
+        except OSError:
+            continue
+
+
+def provider_refusal_evidence(trial_path: Path, traj: dict, result: dict) -> str:
+    """Why this trial looks like an API-layer block, or "" if it does not.
+
+    Evidence only -- the caller decides. Whether the block replaced the model is
+    settled by the completion-token count, not by anything found here.
+    """
+    exc = str(((result.get("exception_info") or {}).get("exception_type")) or "")
+    if any(m in exc.lower().replace("_", "") for m in REFUSAL_EXCEPTIONS):
+        return f"agent raised {exc}"
+    for step in traj.get("steps") or ():
+        if not isinstance(step, dict):
+            continue
+        if str(((step.get("extra") or {}).get("stop_reason")) or "") == "refusal":
+            return "trajectory step carries stop_reason 'refusal'"
+    for name, text in _agent_log_texts(trial_path):
+        for marker in REFUSAL_LOG_MARKERS:
+            if marker in text:
+                return f"agent log {name} records {marker}"
+    return ""
+
+
+def provider_refusal_category(trial_path: Path) -> str:
+    """The vendor's own label for the block, e.g. "cyber".
+
+    Read verbatim from the agent log; never inferred from the task content. If
+    the vendor recorded no category we say so explicitly rather than guessing --
+    an invented category would be a fabricated experimental field.
+    """
+    for _name, text in _agent_log_texts(trial_path):
+        m = _RE_REFUSAL_CATEGORY.search(text)
+        if m:
+            return m.group(1)
+    return REFUSAL_CATEGORY_UNKNOWN
 
 
 # --------------------------------------------------------------------------- #
@@ -264,6 +347,11 @@ class Trial:
     # total_cache_read_input_tokens, verified field-by-field); the scheduler
     # needs them to compute metered tokens, so carry them through.
     cached_tokens: int | None = None
+    # Did a model actually generate for this trial? Every downstream analysis of
+    # MODEL behaviour must gate on this; a PROVIDER_BLOCKED row has it False.
+    model_started: bool = True
+    provider_refusal: bool = False
+    provider_refusal_category: str = ""
 
 
 def scan_run_dir(run_dir: Path) -> list[Trial]:
@@ -292,7 +380,16 @@ def scan_run_dir(run_dir: Path) -> list[Trial]:
             fm = traj.get("final_metrics") or {}
             model = agent.get("model_name") or ""
             cost = fm.get("total_cost_usd")
-            if "synthetic" in model.lower():
+            completion = fm.get("total_completion_tokens")
+            generated = isinstance(completion, (int, float)) and completion > 0
+            # Checked BEFORE the synthetic rule, because an API-layer block is
+            # exactly what produces a synthetic model name. A refusal WITH real
+            # output is the model speaking for itself and stays complete.
+            refusal = provider_refusal_evidence(td, traj, result) if traj else ""
+            blocked = bool(refusal) and not generated
+            if blocked:
+                status = STATUS_PROVIDER_BLOCKED
+            elif "synthetic" in model.lower():
                 status = STATUS_SYNTHETIC
             elif _has_budget_marker(td):
                 status = STATUS_BUDGET_CENSORED
@@ -316,6 +413,10 @@ def scan_run_dir(run_dir: Path) -> list[Trial]:
                 reward=reward,
                 resolved=(reward >= 1.0) if reward is not None else None,
                 cached_tokens=fm.get("total_cached_tokens"),
+                model_started=bool(generated) and not blocked,
+                provider_refusal=blocked,
+                provider_refusal_category=(
+                    provider_refusal_category(td) if blocked else ""),
             ))
     return out
 
