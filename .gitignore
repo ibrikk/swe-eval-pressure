@@ -28,3 +28,4 @@ analysis/
 
 # Local read-only data links used by exploratory worktrees
 /local-data/
+audits/claude_opus5/
