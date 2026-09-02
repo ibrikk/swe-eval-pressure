@@ -17,6 +17,12 @@ ones the new design must be immune to):
   6  version mismatch / drift    -> :7
   7  missing task (arm hole)     -> :3 / :4
   8  historical result dir       -> assert_campaign_path refuses it outright
+
+Single-shard execution planning (./campaign.sh run-shard) is covered too:
+  9  valid slice                 -> plan lists all four profiles, right trial count
+ 10  invalid shard index         -> refused before anything is launched
+ 11  invalid mode                -> refused before anything is launched
+ 12  already-accepted shard      -> refused unless --new-attempt is explicit
 """
 from __future__ import annotations
 
@@ -61,7 +67,8 @@ class Fixture:
         self._orig = (lib.PROJECT_ROOT, lib.CAMPAIGN_ROOT)
         lib.PROJECT_ROOT = tmp
         lib.CAMPAIGN_ROOT = self.root
-        for mod in ("campaign.provenance", "campaign.validate", "campaign.analyze"):
+        for mod in ("campaign.provenance", "campaign.validate",
+                    "campaign.analyze", "campaign.shard"):
             if mod in sys.modules:
                 importlib.reload(sys.modules[mod])
         for k, p in lib.campaign_paths().items():
@@ -350,6 +357,98 @@ class CampaignToolingTest(unittest.TestCase):
         for arm in ("clean-n", "eval-scaf"):
             self.assertEqual(len([r for r in res if r["arm"] == arm]), 280,
                              f"resource must own its {arm} executions")
+
+    # -- single-shard execution planning (run-shard) ------------------------ #
+    def _prepare_slice(self, mode, shard):
+        """Materialise only the dataset + frozen manifest for one slice."""
+        for profile in lib.PROFILES:
+            self.fx.write_cell_manifest(mode, profile, shard)
+
+    def test_11_run_shard_plan_valid_slice(self):
+        from campaign import shard
+        self._prepare_slice("full", 1)
+        plan = shard.plan_shard("full", 1)
+
+        # all four profiles, never a subset
+        self.assertEqual([c["profile"] for c in plan["cells"]], list(lib.PROFILES))
+        self.assertEqual(plan["profiles"], list(lib.PROFILES))
+        # 30 base tasks x 10 full arms x 4 profiles
+        self.assertEqual(plan["expected_trials"], 1200)
+        self.assertEqual(plan["shard_label"], "chunk-1-size-30")
+        self.assertFalse(plan["new_attempt"])
+        self.assertEqual(plan["supersedes"], [])
+        # every planned path stays inside the campaign namespace
+        for c in plan["cells"]:
+            lib.assert_campaign_path(Path(c["dataset"]), "planned dataset")
+            self.assertFalse(c["already_accepted"])
+
+        # shard 3 is the short shard: 10 base tasks, not 30
+        self._prepare_slice("resource", 3)
+        p3 = shard.plan_shard("resource", 3)
+        self.assertEqual(p3["base_tasks"], 10)
+        self.assertEqual(p3["expected_trials"], 10 * 3 * 4)
+
+    def test_12_run_shard_invalid_shard_index_refused(self):
+        from campaign import shard
+        self._prepare_slice("full", 1)
+        for bad in (0, 4, -1, 99):
+            with self.assertRaises(shard.ShardPlanError) as cm:
+                shard.plan_shard("full", bad)
+            self.assertIn("out of range", str(cm.exception))
+        with self.assertRaises(shard.ShardPlanError) as cm:
+            shard.plan_shard("full", "two")
+        self.assertIn("not an integer", str(cm.exception))
+
+    def test_13_run_shard_invalid_mode_refused(self):
+        from campaign import shard
+        self._prepare_slice("full", 1)
+        for bad in ("FULL", "resources", "pilot", "", "full/claude"):
+            with self.assertRaises(shard.ShardPlanError) as cm:
+                shard.plan_shard(bad, 1)
+            self.assertIn("unknown mode", str(cm.exception))
+
+    def test_14_run_shard_refuses_rerun_of_accepted_shard(self):
+        from campaign import shard
+        self.fx.build()                       # every cell accepted
+        rep = _validate()
+        self.assertTrue(rep["ok"], f"precondition: clean corpus; failed={rep['failed']}")
+
+        # a plain rerun of an accepted shard is refused
+        with self.assertRaises(shard.ShardPlanError) as cm:
+            shard.plan_shard("full", 1)
+        msg = str(cm.exception) + " " + " ".join(cm.exception.detail)
+        self.assertIn("already has accepted attempts", msg)
+        self.assertIn("--new-attempt", msg)
+        # it names every accepted cell it is protecting
+        for profile in lib.PROFILES:
+            self.assertIn(f"full/{profile}/chunk-1-size-30", msg)
+
+        # the explicit new-attempt workflow is allowed, and says what it supersedes
+        plan = shard.plan_shard("full", 1, new_attempt=True)
+        self.assertTrue(plan["new_attempt"])
+        self.assertEqual(len(plan["supersedes"]), len(lib.PROFILES))
+        self.assertTrue(all(c["already_accepted"] for c in plan["cells"]))
+        self.assertTrue(all(c["prior_attempt_id"] for c in plan["cells"]))
+
+        # an unaffected shard is unaffected by the refusal
+        with self.assertRaises(shard.ShardPlanError):
+            shard.plan_shard("resource", 2)
+
+    def test_15_run_shard_unprepared_slice_refused(self):
+        from campaign import shard
+        with self.assertRaises(shard.ShardPlanError) as cm:
+            shard.plan_shard("full", 2)       # nothing prepared in this fixture
+        self.assertIn("not prepared", str(cm.exception))
+
+    def test_16_campaign_sh_accepts_run_shard_command(self):
+        """The shell whitelist knows run-shard. Exits at the id gate, before
+        sourcing .env, so this launches nothing and needs no credentials."""
+        import subprocess
+        proc = subprocess.run(
+            ["bash", str(PROJECT_ROOT / "campaign.sh"), "run-shard", "wrong-id", "full", "1"],
+            capture_output=True, text=True, cwd=str(PROJECT_ROOT))
+        self.assertEqual(proc.returncode, 2)
+        self.assertIn("does not match", proc.stderr)
 
 
 if __name__ == "__main__":

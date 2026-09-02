@@ -6,6 +6,7 @@
 #   ./campaign.sh preflight    replication-20260902-v1
 #   ./campaign.sh run-full     replication-20260902-v1
 #   ./campaign.sh run-resource replication-20260902-v1
+#   ./campaign.sh run-shard    replication-20260902-v1 <full|resource> <1|2|3>
 #   ./campaign.sh validate     replication-20260902-v1
 #   ./campaign.sh analyze      replication-20260902-v1
 #
@@ -22,6 +23,10 @@
 # EXECUTION CONTRACT
 #   run-full / run-resource each do, per shard i in 1,2,3:
 #       preflight  ->  all four profiles  ->  validate-shard  ->  next shard
+#   run-shard does exactly ONE iteration of that loop and then STOPS. It is the
+#   same contract, not a relaxed one: same preflight, same four profiles, same
+#   attempt ledger, same validation gate. It exists so a tight budget can be
+#   spent one shard at a time with a decision point in between.
 #   ANY failed preflight or validation STOPS the campaign immediately. There is
 #   no resume-past-failure, no partial-shard acceptance, and no backfilling. A
 #   failed attempt is preserved in the ledger as FAILED; a replacement run gets
@@ -40,11 +45,11 @@ cd "$PROJECT_ROOT"
 
 CMD="${1:-}"; CAMPAIGN_ID="${2:-}"
 usage() {
-  sed -n '2,30p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  sed -n '2,35p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
   exit 2
 }
 [[ -n "$CMD" ]] || usage
-case "$CMD" in prepare|preflight|run-full|run-resource|validate|analyze) ;; *) usage ;; esac
+case "$CMD" in prepare|preflight|run-full|run-resource|run-shard|validate|analyze) ;; *) usage ;; esac
 [[ -n "$CAMPAIGN_ID" ]] || { echo "campaign id required (expected $CAMPAIGN_ID_EXPECTED)" >&2; exit 2; }
 if [[ "$CAMPAIGN_ID" != "$CAMPAIGN_ID_EXPECTED" ]]; then
   echo "FATAL: campaign id '$CAMPAIGN_ID' does not match the id this tree is pinned to" >&2
@@ -76,6 +81,7 @@ export PYTHONPATH="$PROJECT_ROOT${PYTHONPATH:+:$PYTHONPATH}"
 
 PROFILES=(claude fable codex llama)
 SHARDS=(1 2 3)
+RUN_CONTEXT="run-mode"      # overwritten by run_mode / run_shard, used in notes
 SHARD_SIZE=30
 PY="$PROJECT_ROOT/.venv/bin/python"
 [[ -x "$PY" ]] || PY="python3"
@@ -142,7 +148,7 @@ run_one() {  # mode profile shard_index
   "$PY" -m campaign.provenance record \
     --mode "$mode" --profile "$profile" --shard "$shard" \
     --run-dir "$run_dir" --status "$status" --started-at "$started" \
-    --note "campaign.sh run-$mode shard $shard" || {
+    --note "campaign.sh $RUN_CONTEXT $mode shard $shard" || {
       audit "attempt_failed" "mode=$mode" "profile=$profile" "shard=$shard" "run_dir=$run_dir"
       die "$mode/$profile/shard $shard did NOT complete cleanly.
        The attempt is preserved as FAILED in provenance/attempts.jsonl.
@@ -209,8 +215,44 @@ PY
   audit "shard_validation_ok" "context=$ctx"
 }
 
+run_shard() {  # mode shard_index  -- ONE slice, then stop
+  local mode="$1" shard="$2"
+  RUN_CONTEXT="run-shard"
+
+  # Fail-closed gate: unknown mode, out-of-range shard, unprepared dataset, or
+  # an already-accepted shard are all refused here, BEFORE preflight and before
+  # anything is launched.
+  local plan_args=(--mode "$mode" --shard "$shard")
+  [[ "$SHARD_NEW_ATTEMPT" -eq 1 ]] && plan_args+=(--new-attempt)
+  say "run-shard $mode shard $shard"
+  "$PY" -m campaign.shard plan "${plan_args[@]}" || {
+    audit "shard_plan_refused" "mode=$mode" "shard=$shard"
+    die "single-shard plan refused - nothing was launched."
+  }
+  info "pins     : claude-code=$CLAUDE_CODE_VERSION codex=$CODEX_VERSION mini-swe=$MINI_SWE_VERSION"
+  info "root     : ${RESULTS_ROOT#$PROJECT_ROOT/}"
+  if [[ "$SHARD_NEW_ATTEMPT" -eq 1 ]]; then
+    info "mode     : NEW ATTEMPT - superseded attempts are preserved, not deleted"
+  fi
+  audit "shard_start" "mode=$mode" "shard=$shard" "new_attempt=$SHARD_NEW_ATTEMPT"
+
+  # Identical contract to one iteration of run_mode's loop.
+  do_preflight "$mode shard $shard (single)"
+  for p in "${PROFILES[@]}"; do
+    run_one "$mode" "$p" "$shard"
+  done
+  validate_progress "$mode shard $shard (single)"
+
+  audit "shard_complete" "mode=$mode" "shard=$shard"
+  say "run-shard $mode shard $shard complete - STOPPING as instructed"
+  info "This command runs exactly one shard. Nothing further was launched."
+  info "Next shard:  ./campaign.sh run-shard $CAMPAIGN_ID $mode $((shard + 1))"
+  info "Final gate:  ./campaign.sh validate $CAMPAIGN_ID"
+}
+
 run_mode() {  # full | resource
   local mode="$1"
+  RUN_CONTEXT="run-$mode"
   local per_profile per_shard
   case "$mode" in
     full)     per_profile=700; per_shard=(300 300 100) ;;
@@ -242,6 +284,27 @@ run_mode() {  # full | resource
 
 # --------------------------------------------------------------------------- #
 shift 2 || true
+
+# run-shard takes two extra positionals: <mode> <shard>. Every other command's
+# argument handling is untouched.
+SHARD_MODE=""; SHARD_INDEX=""; SHARD_NEW_ATTEMPT=0
+if [[ "$CMD" == "run-shard" ]]; then
+  SHARD_MODE="${1:-}"; SHARD_INDEX="${2:-}"
+  if [[ -z "$SHARD_MODE" || -z "$SHARD_INDEX" ]]; then
+    echo "usage: ./campaign.sh run-shard $CAMPAIGN_ID_EXPECTED <full|resource> <1|2|3> [--new-attempt]" >&2
+    exit 2
+  fi
+  shift 2 || true
+  _rest=()
+  for a in "$@"; do
+    case "$a" in
+      --new-attempt) SHARD_NEW_ATTEMPT=1 ;;
+      *) _rest+=("$a") ;;
+    esac
+  done
+  set -- ${_rest[@]+"${_rest[@]}"}
+fi
+
 EXTRA_ARGS=("$@")
 PREFLIGHT_ARGS=("$@")
 
@@ -250,6 +313,7 @@ case "$CMD" in
   preflight)    do_preflight standalone ;;
   run-full)     run_mode full ;;
   run-resource) run_mode resource ;;
+  run-shard)    run_shard "$SHARD_MODE" "$SHARD_INDEX" ;;
   validate)
       say "validate $CAMPAIGN_ID (full campaign gate)"
       "$PY" -m campaign.provenance build || die "corpus build reported errors"

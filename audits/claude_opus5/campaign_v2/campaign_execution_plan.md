@@ -390,6 +390,40 @@ preflight  →  claude  →  fable  →  codex  →  llama  →  validate  →  
 The runner refuses a campaign id that does not match the id this tree is pinned
 to, rather than writing into the wrong namespace.
 
+### 8.1 Single-shard execution (`run-shard`)
+
+`run-shard` executes **exactly one** iteration of the loop above and then stops:
+
+```
+./campaign.sh run-shard replication-20260902-v1 full     1
+./campaign.sh run-shard replication-20260902-v1 resource 1
+```
+
+It is the same contract, not a relaxed one — same preflight, same four
+profiles, same attempt ledger, same validation gate — so that a tight budget can
+be spent one shard at a time with a human decision point in between. Per-slice
+trial counts:
+
+| slice | base tasks | arms | profiles | trajectories |
+|---|---|---|---|---|
+| full shard 1 / 2 | 30 | 10 | 4 | 1200 each |
+| full shard 3 | 10 | 10 | 4 | 400 |
+| resource shard 1 / 2 | 30 | 3 | 4 | 360 each |
+| resource shard 3 | 10 | 3 | 4 | 120 |
+
+The six slices sum to 3,640 — identical to `run-full` + `run-resource`.
+
+Before anything is launched, `campaign/shard.py` refuses:
+
+- an unknown mode, or a shard index outside 1..3;
+- a slice whose prepared dataset or frozen cell manifest is missing;
+- a slice whose cells are **already accepted** in the attempt ledger, because
+  re-running would supersede accepted trajectories. Overriding this requires the
+  explicit `--new-attempt` flag, which is recorded in the ledger; the superseded
+  attempt is preserved, never deleted.
+
+`run-full` and `run-resource` are unchanged.
+
 ---
 
 ## 9. What changed in the repository
