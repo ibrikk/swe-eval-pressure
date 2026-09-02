@@ -24,7 +24,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from campaign import lib, cost_model
+from campaign import cells, cost_model, lib
 
 # Fraction of headroom demanded on top of the remaining planning cost.
 SAFETY_MARGIN = 0.10
@@ -117,21 +117,31 @@ def check_models(profiles, key: str) -> list[str]:
 
 
 def remaining_campaign_cost(paths, est: dict) -> tuple[float, list[str]]:
-    """Planning cost of cells that are not yet validated-complete."""
-    done = set()
-    state = paths["provenance"] / "accepted_runs.json"
-    if state.is_file():
-        for entry in json.loads(state.read_text()).get("accepted", []):
-            if entry.get("status") == "complete":
-                done.add(entry["cell"])
+    """Planning cost of the EXPERIMENTAL CELLS that still require inference.
+
+    This used to charge every not-yet-accepted profile/shard at its full trial
+    count. That is wrong for an interrupted shard, and wrong in an expensive
+    direction: after the 2026-09-02 crash, FULL shard 1 held 976 valid
+    trajectories and needed 224 more, but this function still priced it as
+    1,200 fresh trials -- overstating remaining cost by roughly $2.2k and
+    letting the budget gate refuse work the budget actually covered.
+
+    `campaign.cells.remaining_trials` resolves each profile/shard to the number
+    of task/arm cells genuinely outstanding, from the written repair plan when
+    one exists.
+    """
+    remaining = cells.remaining_trials(paths)
     total, pending = 0.0, []
     for cell in lib.all_cells():
-        if cell.key in done:
+        info = remaining.get(cell.key) or {"remaining_trials": cell.expected_trials,
+                                           "basis": "not_started"}
+        n = int(info["remaining_trials"])
+        if n <= 0:
             continue
         c = est["cells"][f"{cell.mode}/{cell.profile}"]
         per_trial = c["mean_usd_per_trial"] or 0.0
-        total += per_trial * cell.expected_trials * 1.20  # same contingency as planning
-        pending.append(cell.key)
+        total += per_trial * n * 1.20        # same contingency as planning
+        pending.append(f"{cell.key} ({n} trials, {info['basis']})")
     return total, pending
 
 

@@ -89,6 +89,13 @@ class TpmMeter:
     excluded: `total_cached_tokens` is exactly `total_cache_read_input_tokens`
     and counting it produced the nonsensical 227%-of-ceiling figure in the
     audit.
+
+    RETROSPECTIVE. Every event fed here is reconstructed from a trajectory,
+    which exists only once its trial has ended. `record` must therefore be
+    given the timestamp the tokens were ACTUALLY spent (`campaign.tokens`
+    extracts per-step timestamps for exactly this) and never the moment a batch
+    happened to be reaped -- collapsing a 90-minute batch onto its exit instant
+    is what produced the 12.3M-TPM phantom on 2026-09-02.
     """
 
     def __init__(self, window_sec: int = TPM_WINDOW_SEC):
@@ -166,6 +173,9 @@ class Decision:
     observed_tpm: float = 0.0
     throttled: bool = False
     total_workers: int = 0
+    # True when `observed_tpm` came from trajectories that are only written when
+    # a trial ENDS, i.e. it lags reality and must not gate live decisions.
+    observed_is_retrospective: bool = True
 
     def as_dict(self):
         return asdict(self)
@@ -183,7 +193,8 @@ class Scheduler:
     """
 
     def __init__(self, profiles=lib.PROFILES, *, global_ceiling: int = GLOBAL_WORKER_CEILING,
-                 soft_tpm: int = SOFT_TPM_CEILING, hard_tpm: int = HARD_TPM_CEILING):
+                 soft_tpm: int = SOFT_TPM_CEILING, hard_tpm: int = HARD_TPM_CEILING,
+                 live_tpm_signal: bool = False):
         self.states = {p: ProfileState(p) for p in profiles}
         self.global_ceiling = global_ceiling
         self.soft_tpm = soft_tpm
@@ -191,6 +202,13 @@ class Scheduler:
         self.meter = TpmMeter()
         self.recent_429 = 0
         self.last_adjust = 0.0
+        # Set True ONLY if a genuinely live, per-request metering source is
+        # wired in. Token events reconstructed from trajectories are not that:
+        # a trajectory is written when its trial ends, so the recent end of the
+        # series is structurally empty while work is in flight. Throttling on
+        # it is how the 2026-09-02 shard cut llama from 21 workers to 15 on a
+        # reading of 12,298,656 TPM when real traffic that minute was 31,521.
+        self.live_tpm_signal = bool(live_tpm_signal)
 
     # -- pressure signals ---------------------------------------------------
     def note_rate_limit(self, profile: str, *, now: float | None = None) -> None:
@@ -271,8 +289,9 @@ class Scheduler:
 
         throttled = False
         reason = "work-conserving fill to caps"
-        # 4. Reactive throttle on genuinely observed pressure.
-        if observed > self.soft_tpm:
+        # 4. Reactive throttle on genuinely observed pressure. Gated on
+        #    `live_tpm_signal`: a retrospective series may only be REPORTED.
+        if self.live_tpm_signal and observed > self.soft_tpm:
             throttled = True
             reason = f"observed metered TPM {observed:,.0f} over soft ceiling {self.soft_tpm:,} - scaling down"
             for p in list(alloc):
@@ -289,7 +308,8 @@ class Scheduler:
             reason += f" (single profile {wanting[0].profile} may expand to its cap)"
 
         return Decision(alloc, reason, self.projected_tpm(alloc), observed,
-                        throttled, sum(alloc.values()))
+                        throttled, sum(alloc.values()),
+                        observed_is_retrospective=not self.live_tpm_signal)
 
 
 def limits_table() -> str:

@@ -9,7 +9,7 @@ Coverage maps 1:1 onto the requested behaviours:
    2 capacity redistribution when fable finishes
    3 llama never starves while queued
    4 a single remaining profile expands to its safe cap
-   5 real metered TPM at the ceiling causes scale-down
+   5 real metered TPM at the ceiling causes scale-down (live signal only)
    6 low TPM alone does NOT cause unbounded scale-up
    7 a corroborated 429 causes backoff and is retryable
    8 a false Harbor rate-limit verdict does NOT trigger a retry
@@ -107,7 +107,8 @@ class TestRedistribution(unittest.TestCase):
 class TestTpmCeiling(unittest.TestCase):
 
     def test_05_observed_tpm_over_ceiling_scales_down(self):
-        s = loaded({p: 500 for p in PROFILE_LIMITS})
+        """Only a LIVE signal may throttle -- see test_05b for why."""
+        s = loaded({p: 500 for p in PROFILE_LIMITS}, live_tpm_signal=True)
         baseline = s.allocate()
         # metered tokens far above the soft ceiling within the rolling window
         s.meter.record("claude", int(SOFT_TPM_CEILING * 1.5 * (s.meter.window_sec / 60.0)), 1000.0)
@@ -116,6 +117,27 @@ class TestTpmCeiling(unittest.TestCase):
         self.assertLess(d.total_workers, baseline.total_workers,
                         "TPM over the soft ceiling must reduce workers")
         self.assertIn("over soft ceiling", d.reason)
+
+    def test_05b_retrospective_tpm_alone_never_throttles(self):
+        """The 2026-09-02 regression, pinned.
+
+        The controller read 12,298,656 TPM -- 2.46x the hard ceiling -- and cut
+        llama from 21 workers to 15. Real traffic that minute was 31,521. The
+        reading was an artefact of charging whole trials at batch-end, so the
+        default scheduler must not act on the retrospective series at all.
+        """
+        s = loaded({p: 500 for p in PROFILE_LIMITS})
+        self.assertFalse(s.live_tpm_signal,
+                         "no live per-request meter exists; default must be off")
+        baseline = s.allocate()
+        s.meter.record("llama", int(12_298_656 * (s.meter.window_sec / 60.0)), 1000.0)
+        d = s.allocate(now=1000.0)
+        self.assertGreater(s.meter.tpm(1000.0), s.hard_tpm,
+                           "fixture must reproduce the phantom magnitude")
+        self.assertFalse(d.throttled,
+                         "a retrospective series must never throttle live work")
+        self.assertEqual(d.total_workers, baseline.total_workers)
+        self.assertTrue(d.observed_is_retrospective)
 
     def test_06_low_tpm_does_not_cause_unbounded_growth(self):
         """The whole point of the ceiling design: 9% utilisation must not ramp."""
@@ -462,12 +484,19 @@ class TestReapMetering(unittest.TestCase):
             self.assertEqual(metered, 200, "(1000-900)+100")
 
     def test_16h_controller_reap_does_not_count_cache_reads(self):
+        """Metering excludes cache reads, and happens per step, not per batch."""
+        from campaign import tokens
+        metered, prompt, completion, cached = tokens.metered_of({
+            "prompt_tokens": 1000, "completion_tokens": 100, "cached_tokens": 900})
+        self.assertEqual(metered, 200, "(1000-900)+100")
         src = (Path(__file__).resolve().parents[1] / "controller.py").read_text()
-        seg = src[src.index("Collect a finished batch"):]
-        seg = seg[:seg.index("def _handle_failure")]
-        self.assertIn("metered_tokens", seg,
-                      "reap must use the metered-token helper, not raw prompt tokens")
-        self.assertNotIn("(t.prompt_tokens or 0) - 0", seg)
+        seg = src[src.index("def reap"):src.index("def _close_retry")]
+        self.assertNotIn("b.finished_at", seg,
+                         "reap must not charge a whole trial at batch-end")
+        self.assertNotIn("u.finished_at)", seg,
+                         "reap must not charge a whole trial at unit-end")
+        self.assertIn("_record_tokens", seg,
+                      "reap must route tokens through the per-step recorder")
 
 
 if __name__ == "__main__":

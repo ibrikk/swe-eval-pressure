@@ -12,7 +12,32 @@ So: a Harbor exception CLASS NAME is never sufficient evidence. A retry needs
 corroboration from the actual error text or HTTP status.
 
 Precedence is deliberate and budget-first:
-    BUDGET > PARTIAL_MODEL > TRANSIENT_PROVIDER > PRE_MODEL_INFRA > PERMANENT
+
+    BUDGET > PROVIDER_REFUSAL > DETERMINISTIC_INFRA > PARTIAL_MODEL
+           > TRANSIENT_PROVIDER > PRE_MODEL_INFRA > PERMANENT
+
+PROVIDER_REFUSAL and DETERMINISTIC_INFRA were added from the 2026-09-02 shard-1
+evidence. Both TIGHTEN retry, never loosen it:
+
+  * PROVIDER_REFUSAL - all 10 arms of base task 4fd11885 came back from Fable 5
+    as `AgentSafetyRefusalError` with `stop_reason: refusal` and zero completion
+    tokens, because the task (consolidating TruffleHog GitHub-token detectors)
+    trips the provider's cyber safeguard. That is a deterministic function of
+    the task text, so it is not retryable -- but the old code only reached
+    "not retryable" by falling through to `partial_model` with the unhelpful
+    reason "failed without transient evidence". Now it is named.
+
+  * DETERMINISTIC_INFRA - the SAME content-addressed Modal image ids
+    (im-x6EXQtv6..., im-Y3lpPwyq..., im-gerqAtzp...) failed the image build in
+    all FOUR profiles independently, hours apart. An infrastructure failure is
+    only transient until it demonstrably reproduces; once a signature has failed
+    before, retrying it just buys the same failure again. `pre_model_infra` is
+    therefore downgraded on reproduction, via `apply_reproduction_evidence`.
+
+The one place classification was too STRICT is also fixed: an agent-install step
+that dies because git/npm could not reach the network inside the sandbox
+("could not read Username for 'https://github.com'") is a genuine transient
+pre-model infrastructure fault, and used to fall through to PERMANENT.
 """
 from __future__ import annotations
 
@@ -29,8 +54,11 @@ TRANSIENT_PROVIDER = "transient_provider"   # 429 / 5xx / reset / timeout
 PRE_MODEL_INFRA = "pre_model_infra"    # setup died before any model step
 PARTIAL_MODEL = "partial_model"        # model did real work, then failed
 PERMANENT = "permanent"                # anything we cannot justify retrying
+PROVIDER_REFUSAL = "provider_refusal"  # provider safety-refused the task text
+DETERMINISTIC_INFRA = "deterministic_infra"  # infra fault that has reproduced
 
 RETRYABLE = (TRANSIENT_PROVIDER, PRE_MODEL_INFRA, PARTIAL_MODEL)
+NEVER_RETRYABLE = (BUDGET, PROVIDER_REFUSAL, DETERMINISTIC_INFRA, PERMANENT)
 MAX_RETRIES = 2                        # 2 retries => at most 3 attempts total
 
 # --- corroborating evidence patterns --------------------------------------- #
@@ -69,6 +97,34 @@ _RE_INFRA = re.compile(
     r"|(?:no\s+space\s+left\s+on\s+device)",
     re.I,
 )
+# Provider SAFETY REFUSAL. Unlike the rate-limit case, accepting Harbor's class
+# name here is conservative: it can only ever BLOCK a retry, never cause one. We
+# still prefer body evidence, and match both.
+_RE_REFUSAL = re.compile(
+    r"(?:\bAgentSafetyRefusalError\b)"
+    r"|(?:[\"']stop_reason[\"']\s*:\s*[\"']refusal[\"'])"
+    r"|(?:safeguards\s+flagged\s+this\s+message)"
+    r"|(?:[\"']type[\"']\s*:\s*[\"']refusal[\"'])",
+    re.I,
+)
+# Agent INSTALL/bootstrap died reaching the network from inside the sandbox.
+# This happens before any model step and is genuinely transient (the codex
+# profile installs node via nvm, which clones from github.com).
+_RE_AGENT_SETUP = re.compile(
+    r"(?:could\s+not\s+read\s+Username\s+for)"
+    r"|(?:failed\s+to\s+clone\s+\S+\s+repo)"
+    r"|(?:NVM\s+failed\s+to\s+load)"
+    r"|(?:expected\s+flush\s+after\s+ref\s+listing)"
+    r"|(?:npm\s+ERR!\s+network)"
+    r"|(?:E(?:AI_AGAIN|NOTFOUND)\b)"
+    r"|(?:Temporary\s+failure\s+in\s+name\s+resolution)",
+    re.I,
+)
+# Content-addressed identity of a reproducible infra fault. A Modal image id is
+# derived from the build definition, so the same id failing twice is the same
+# build failing twice -- not two unlucky draws.
+_RE_MODAL_IMAGE = re.compile(r"\b(im-[A-Za-z0-9]{6,})\b")
+
 # Exception class names that Harbor emits. Recognised, but NEVER sufficient.
 _RE_HARBOR_CLASSNAME = re.compile(
     r"\b(?:ApiRateLimitError|ApiError|AgentExecutionError|ExecError)\b")
@@ -82,6 +138,9 @@ class Classification:
     retryable: bool
     corroborated: bool = False
     evidence: str = ""
+    # Stable identity of a reproducible fault, "" when the failure has no
+    # content-addressed identity. See `apply_reproduction_evidence`.
+    signature: str = ""
 
     def as_dict(self):
         return asdict(self)
@@ -107,8 +166,51 @@ def _text_of(trial_dir: Path) -> str:
     return "\n".join(parts)
 
 
+def failure_signature(text: str) -> str:
+    """Content-addressed identity of a reproducible fault, or "".
+
+    Only content-addressed identifiers qualify. A Modal image id is a hash of
+    the build definition, so `im-x6EXQtv6VljLdOL1LimybV` failing in the claude
+    profile and in the llama profile six hours later is *the same build failing
+    twice*, not two independent unlucky draws. A container id or a request id
+    would NOT qualify -- those differ per attempt and would never match.
+    """
+    m = _RE_MODAL_IMAGE.search(text or "")
+    return f"modal-image:{m.group(1)}" if m else ""
+
+
+def apply_reproduction_evidence(cls: Classification,
+                                seen_signatures) -> Classification:
+    """Downgrade a 'transient' infra fault that has demonstrably reproduced.
+
+    `seen_signatures` is the set of failure signatures already observed in this
+    campaign (from the retry ledger and from earlier failures in this run). An
+    infrastructure failure is a retry candidate only while it is plausibly a
+    one-off; the second time the exact same content-addressed build fails, the
+    evidence says it is deterministic and a retry only buys the same failure.
+
+    This can only ever REMOVE a retry, never add one.
+    """
+    if cls.failure_class != PRE_MODEL_INFRA or not cls.signature:
+        return cls
+    if cls.signature not in set(seen_signatures):
+        return cls
+    return Classification(
+        DETERMINISTIC_INFRA,
+        f"infrastructure failure {cls.signature} has already failed in this "
+        "campaign - reproduced, therefore deterministic, not retryable",
+        cls.model_started, False, True, cls.evidence, cls.signature)
+
+
 def model_started_from(trial_dir: Path) -> bool:
-    """True if the model executed meaningful steps before failing."""
+    """True if the model executed meaningful steps before failing.
+
+    NOTE a provider safety refusal also lands here as True: the trajectory has
+    `steps`, even though `total_completion_tokens` is 0. That is deliberate --
+    the provider WAS reached, and the nuance is carried by the
+    PROVIDER_REFUSAL class rather than by flipping this flag, which the
+    validator and the corpus builder also read.
+    """
     traj = lib.jload(trial_dir / "agent" / "trajectory.json") or {}
     if not traj:
         return False
@@ -131,6 +233,17 @@ def classify(error_text: str, *, model_started: bool = False,
             return Classification(BUDGET, f"budget marker {marker!r} present",
                                   model_started, False, True, marker)
 
+    # 2. PROVIDER REFUSAL. Deterministic in the task text, so never retryable.
+    #    Checked before PARTIAL_MODEL because a refusal *does* produce steps and
+    #    would otherwise be swallowed by "failed without transient evidence".
+    mref = _RE_REFUSAL.search(text)
+    if mref:
+        return Classification(
+            PROVIDER_REFUSAL,
+            "provider safety-refused the task content; deterministic in the "
+            "task text, so a retry would refuse identically",
+            model_started, False, True, mref.group(0))
+
     m429 = _RE_429.search(text)
     m5xx = _RE_5XX.search(text)
     mnet = _RE_NET.search(text)
@@ -138,7 +251,7 @@ def classify(error_text: str, *, model_started: bool = False,
     status_429 = http_status == 429
     status_5xx = http_status is not None and 500 <= http_status < 600
 
-    # 2. PARTIAL MODEL: real steps happened. Preserve the original attempt and
+    # 3. PARTIAL MODEL: real steps happened. Preserve the original attempt and
     #    retry only under explicit lineage -- never an in-place overwrite.
     if model_started:
         if m429 or status_429 or m5xx or status_5xx or mnet:
@@ -151,7 +264,7 @@ def classify(error_text: str, *, model_started: bool = False,
             PARTIAL_MODEL, "model executed steps then failed without transient evidence",
             True, False, False, "")
 
-    # 3. TRANSIENT PROVIDER, only with corroboration.
+    # 4. TRANSIENT PROVIDER, only with corroboration.
     if m429 or status_429:
         return Classification(TRANSIENT_PROVIDER, "corroborated HTTP 429",
                               False, True, True,
@@ -164,12 +277,26 @@ def classify(error_text: str, *, model_started: bool = False,
         return Classification(TRANSIENT_PROVIDER, "connection reset / gateway timeout",
                               False, True, True, mnet.group(0))
 
-    # 4. PRE-MODEL INFRASTRUCTURE.
+    # 5. PRE-MODEL INFRASTRUCTURE. Retryable *on first sight only*; see
+    #    `apply_reproduction_evidence` for the reproduction downgrade.
     if minfra:
         return Classification(PRE_MODEL_INFRA, "environment/container setup failure "
-                              "before any model step", False, True, True, minfra.group(0))
+                              "before any model step", False, True, True,
+                              minfra.group(0), failure_signature(text))
 
-    # 5. Harbor said "rate limit" but nothing corroborates it. This is the
+    # 6. AGENT INSTALL reached the network and failed. The codex profile
+    #    installs node through nvm, which clones from github.com; when that
+    #    clone fails the run dies before any model step. This used to fall
+    #    through to PERMANENT, which was wrong -- it is a real transient.
+    msetup = _RE_AGENT_SETUP.search(text)
+    if msetup:
+        return Classification(PRE_MODEL_INFRA,
+                              "agent install/bootstrap failed on a network "
+                              "operation before any model step",
+                              False, True, True, msetup.group(0),
+                              failure_signature(text))
+
+    # 7. Harbor said "rate limit" but nothing corroborates it. This is the
     #    Aug-27 false positive. Do not retry it as transient.
     if _RE_HARBOR_CLASSNAME.search(text):
         cls = _RE_HARBOR_CLASSNAME.search(text).group(0)
@@ -204,6 +331,12 @@ class RetryRecord:
     accepted_status: str = "pending"    # pending | accepted | failed | abandoned
     cell: str = ""
     evidence: str = ""
+    # Provenance of BOTH sides of the lineage, so the failed original can always
+    # be found on disk and the retry's own artifacts can be audited.
+    original_run_dir: str = ""
+    retry_run_dir: str = ""
+    retry_dataset: str = ""
+    signature: str = ""
 
     def as_dict(self):
         return asdict(self)
@@ -246,8 +379,14 @@ class RetryLedger:
             return False, f"retry budget exhausted ({n}/{MAX_RETRIES})"
         return True, f"retry {n + 1}/{MAX_RETRIES} for {cls.failure_class}"
 
+    def signatures(self) -> set:
+        """Every failure signature this campaign has already recorded."""
+        return {r.signature for r in self.records() if r.signature}
+
     def open_retry(self, original_trial_id: str, retry_trial_id: str,
-                   cls: Classification, *, cell: str = "") -> RetryRecord:
+                   cls: Classification, *, cell: str = "",
+                   original_run_dir: str = "",
+                   retry_dataset: str = "") -> RetryRecord:
         rec = RetryRecord(
             original_trial_id=original_trial_id,
             retry_trial_id=retry_trial_id,
@@ -258,18 +397,42 @@ class RetryLedger:
             started_at=lib.now_iso(),
             cell=cell,
             evidence=cls.evidence,
+            original_run_dir=str(original_run_dir),
+            retry_dataset=str(retry_dataset),
+            signature=cls.signature,
         )
         with open(self.path, "a") as fh:
             fh.write(json.dumps(rec.as_dict()) + "\n")
         return rec
 
-    def close_retry(self, retry_trial_id: str, accepted_status: str) -> None:
+    CLOSED_STATUS = ("accepted", "failed", "abandoned")
+
+    def close_retry(self, retry_trial_id: str, accepted_status: str, *,
+                    retry_run_dir: str = "") -> RetryRecord | None:
+        """Close one open lineage record. Returns the record, or None.
+
+        Every retry the controller launches MUST come back through here -- an
+        eternally "pending" record is indistinguishable from a retry that was
+        queued and silently dropped, which is exactly what the 2026-09-02 shard
+        left behind (6 records, all pending, no finished_at).
+        """
+        if accepted_status not in self.CLOSED_STATUS:
+            raise ValueError(f"accepted_status must be one of {self.CLOSED_STATUS}, "
+                             f"got {accepted_status!r}")
         recs = self.records()
+        closed = None
         for r in recs:
             if r.retry_trial_id == retry_trial_id and r.accepted_status == "pending":
                 r.accepted_status = accepted_status
                 r.finished_at = lib.now_iso()
+                if retry_run_dir:
+                    r.retry_run_dir = str(retry_run_dir)
+                closed = r
         self.path.write_text("".join(json.dumps(r.as_dict()) + "\n" for r in recs))
+        return closed
+
+    def open_records(self) -> list[RetryRecord]:
+        return [r for r in self.records() if r.accepted_status == "pending"]
 
     def backoff_seconds(self, retry_number: int, base: float = 30.0) -> float:
         """Exponential backoff, capped. 30s, 60s (MAX_RETRIES == 2)."""
