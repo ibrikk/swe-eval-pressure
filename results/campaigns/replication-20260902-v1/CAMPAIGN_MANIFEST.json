@@ -1,0 +1,397 @@
+{
+  "campaign_id": "replication-20260902-v1",
+  "schema_version": "1.0",
+  "created_at": "2026-09-02T03:36:20.127674+00:00",
+  "purpose": "Second, completely fresh experimental campaign for SWE-EvalPressure. Every trajectory in this namespace is newly executed. No trajectory, partial run, salvaged shard or repair attempt from the Aug 2026 corpus is reused, pooled or referenced as data.",
+  "design": {
+    "full": {
+      "base_tasks": 70,
+      "arms": 10,
+      "arm_names": [
+        "clean-n",
+        "eval-src",
+        "eval-fin-src",
+        "eval-self-src",
+        "eval-root",
+        "eval-fin-root",
+        "eval-self-root",
+        "eval-scaf",
+        "eval-fin-scaf",
+        "eval-self-scaf"
+      ],
+      "per_profile": 700,
+      "profiles": [
+        "claude",
+        "fable",
+        "codex",
+        "llama"
+      ],
+      "total": 2800
+    },
+    "resource": {
+      "base_tasks": 70,
+      "arms": 3,
+      "arm_names": [
+        "clean-n",
+        "eval-scaf",
+        "eval-resource-scaf"
+      ],
+      "per_profile": 210,
+      "profiles": [
+        "claude",
+        "fable",
+        "codex",
+        "llama"
+      ],
+      "total": 840,
+      "self_contained": true,
+      "self_contained_rationale": "clean-n and eval-scaf task definitions are byte-identical to the FULL cells of the same name (verified: 140/140 identical seed.json hashes per profile). They are nevertheless executed independently so RESOURCE has its own freshly executed control, eval-only comparator and treatment. No FULL trajectory may be substituted."
+    },
+    "campaign_total": 3640
+  },
+  "sharding": {
+    "type": "fixed_size_base_task",
+    "shard_size": 30,
+    "shards": {
+      "1": {
+        "base_tasks": 30,
+        "base_task_range": "1-30",
+        "full_per_profile": 300,
+        "full_all_profiles": 1200,
+        "resource_per_profile": 90,
+        "resource_all_profiles": 360
+      },
+      "2": {
+        "base_tasks": 30,
+        "base_task_range": "31-60",
+        "full_per_profile": 300,
+        "full_all_profiles": 1200,
+        "resource_per_profile": 90,
+        "resource_all_profiles": 360
+      },
+      "3": {
+        "base_tasks": 10,
+        "base_task_range": "61-70",
+        "full_per_profile": 100,
+        "full_all_profiles": 400,
+        "resource_per_profile": 30,
+        "resource_all_profiles": 120
+      }
+    }
+  },
+  "version_pins": {
+    "claude": {
+      "agent": "claude-code",
+      "agent_version": "2.1.247",
+      "pin_env": "CLAUDE_CODE_VERSION",
+      "model": "anthropic/claude-opus-4-8"
+    },
+    "fable": {
+      "agent": "claude-code",
+      "agent_version": "2.1.247",
+      "pin_env": "CLAUDE_CODE_VERSION",
+      "model": "anthropic/claude-fable-5"
+    },
+    "codex": {
+      "agent": "codex",
+      "agent_version": "0.147.0",
+      "pin_env": "CODEX_VERSION",
+      "model": "openai/gpt-5.6"
+    },
+    "llama": {
+      "agent": "mini-swe-agent",
+      "agent_version": "2.4.5",
+      "pin_env": "MINI_SWE_VERSION",
+      "model": "openai/llmengine/llama-3-3-70b-instruct"
+    }
+  },
+  "runtime_pins": {
+    "harbor": "0.20.0",
+    "mini_swe_litellm": "1.83.0",
+    "uv_bootstrap": "0.7.13",
+    "modal_vm_runtime": true,
+    "harbor_repeats": 1
+  },
+  "factors": {
+    "cue_assignment_seed": 20260805,
+    "financial_message_index": 3,
+    "self_preservation_message_index": 5,
+    "resource_deprivation_message_index": 10
+  },
+  "dataset_integrity": {
+    "strategy": "campaign_local_hardlink_snapshot_plus_content_hashes",
+    "snapshot_root": "results/campaigns/replication-20260902-v1/datasets",
+    "verified_before_every_shard": true
+  },
+  "cost_model": {
+    "cells": {
+      "full/claude": {
+        "mode": "full",
+        "profile": "claude",
+        "historical_trials_observed": 356,
+        "historical_trials_with_nonzero_cost": 356,
+        "mean_usd_per_trial": 2.5164,
+        "p90_usd_per_trial": 4.8542,
+        "median_prompt_tokens": 2058191,
+        "campaign_trials": 700,
+        "expected_usd": 1761.46,
+        "p90_usd": 3397.91,
+        "cost_reported_by_gateway": true
+      },
+      "full/fable": {
+        "mode": "full",
+        "profile": "fable",
+        "historical_trials_observed": 331,
+        "historical_trials_with_nonzero_cost": 331,
+        "mean_usd_per_trial": 3.5893,
+        "p90_usd_per_trial": 6.2605,
+        "median_prompt_tokens": 1269418,
+        "campaign_trials": 700,
+        "expected_usd": 2512.54,
+        "p90_usd": 4382.35,
+        "cost_reported_by_gateway": true
+      },
+      "full/codex": {
+        "mode": "full",
+        "profile": "codex",
+        "historical_trials_observed": 795,
+        "historical_trials_with_nonzero_cost": 537,
+        "mean_usd_per_trial": 1.2946,
+        "p90_usd_per_trial": 2.2853,
+        "median_prompt_tokens": 1451275,
+        "campaign_trials": 700,
+        "expected_usd": 906.25,
+        "p90_usd": 1599.74,
+        "cost_reported_by_gateway": true
+      },
+      "full/llama": {
+        "mode": "full",
+        "profile": "llama",
+        "historical_trials_observed": 624,
+        "historical_trials_with_nonzero_cost": 0,
+        "mean_usd_per_trial": null,
+        "p90_usd_per_trial": null,
+        "median_prompt_tokens": 12525,
+        "campaign_trials": 700,
+        "expected_usd": 0.0,
+        "p90_usd": 0.0,
+        "cost_reported_by_gateway": false
+      },
+      "resource/claude": {
+        "mode": "resource",
+        "profile": "claude",
+        "historical_trials_observed": 209,
+        "historical_trials_with_nonzero_cost": 209,
+        "mean_usd_per_trial": 2.8388,
+        "p90_usd_per_trial": 6.3119,
+        "median_prompt_tokens": 1785527,
+        "campaign_trials": 210,
+        "expected_usd": 596.14,
+        "p90_usd": 1325.49,
+        "cost_reported_by_gateway": true
+      },
+      "resource/fable": {
+        "mode": "resource",
+        "profile": "fable",
+        "historical_trials_observed": 198,
+        "historical_trials_with_nonzero_cost": 198,
+        "mean_usd_per_trial": 4.1513,
+        "p90_usd_per_trial": 8.821,
+        "median_prompt_tokens": 1082510,
+        "campaign_trials": 210,
+        "expected_usd": 871.78,
+        "p90_usd": 1852.42,
+        "cost_reported_by_gateway": true
+      },
+      "resource/codex": {
+        "mode": "resource",
+        "profile": "codex",
+        "historical_trials_observed": 210,
+        "historical_trials_with_nonzero_cost": 210,
+        "mean_usd_per_trial": 1.0245,
+        "p90_usd_per_trial": 2.0607,
+        "median_prompt_tokens": 909580,
+        "campaign_trials": 210,
+        "expected_usd": 215.16,
+        "p90_usd": 432.75,
+        "cost_reported_by_gateway": true
+      },
+      "resource/llama": {
+        "mode": "resource",
+        "profile": "llama",
+        "historical_trials_observed": 209,
+        "historical_trials_with_nonzero_cost": 0,
+        "mean_usd_per_trial": null,
+        "p90_usd_per_trial": null,
+        "median_prompt_tokens": 11602,
+        "campaign_trials": 210,
+        "expected_usd": 0.0,
+        "p90_usd": 0.0,
+        "cost_reported_by_gateway": false
+      }
+    },
+    "expected_total_usd": 6863.33,
+    "p90_total_usd": 12990.66,
+    "planning_total_usd": 8236.0,
+    "unpriced_cells": [
+      "full/llama",
+      "resource/llama"
+    ],
+    "note": "llama cells are billed at $0 by this gateway (llmengine route reports x-litellm-response-cost 0), so their true cost is unknown-but-small; the 20% contingency in planning_total_usd covers them."
+  },
+  "budget_at_prepare": null,
+  "cells": [
+    {
+      "cell": "full/claude/chunk-1-size-30",
+      "expected_trials": 300,
+      "dataset_manifest_sha256": "32d9abf0568b91aaa9e2bfef160620996f7d69cfcf1b206a1e98801fc18c9029",
+      "manifest": "results/campaigns/replication-20260902-v1/manifests/cells/full__claude__chunk-1-size-30.json"
+    },
+    {
+      "cell": "full/claude/chunk-2-size-30",
+      "expected_trials": 300,
+      "dataset_manifest_sha256": "6599e86f2998b13bc24d0ed3648bfaf0c8b0b62bcc91b54607d74dab1c55a1ca",
+      "manifest": "results/campaigns/replication-20260902-v1/manifests/cells/full__claude__chunk-2-size-30.json"
+    },
+    {
+      "cell": "full/claude/chunk-3-size-30",
+      "expected_trials": 100,
+      "dataset_manifest_sha256": "ef6a529fede18bdb270507d95028bc1fafdd218a6d69d2465dd588bd7ceb985e",
+      "manifest": "results/campaigns/replication-20260902-v1/manifests/cells/full__claude__chunk-3-size-30.json"
+    },
+    {
+      "cell": "full/fable/chunk-1-size-30",
+      "expected_trials": 300,
+      "dataset_manifest_sha256": "04e67b5321247278cf0cd7f653aea9608223e7b965705561cdc76216cd63927e",
+      "manifest": "results/campaigns/replication-20260902-v1/manifests/cells/full__fable__chunk-1-size-30.json"
+    },
+    {
+      "cell": "full/fable/chunk-2-size-30",
+      "expected_trials": 300,
+      "dataset_manifest_sha256": "ff7a3ea3110e16e4355809bb857c4641269fa18c134c8ec656b2d1c9ed0950dd",
+      "manifest": "results/campaigns/replication-20260902-v1/manifests/cells/full__fable__chunk-2-size-30.json"
+    },
+    {
+      "cell": "full/fable/chunk-3-size-30",
+      "expected_trials": 100,
+      "dataset_manifest_sha256": "2baa53bb304837c84acb3e092a4f7fa83cf2f569bd92f2a5705927963ab80537",
+      "manifest": "results/campaigns/replication-20260902-v1/manifests/cells/full__fable__chunk-3-size-30.json"
+    },
+    {
+      "cell": "full/codex/chunk-1-size-30",
+      "expected_trials": 300,
+      "dataset_manifest_sha256": "59e479ed423605f6bdd74ae24292e1d2f137343810aa57bd2b9a4b7204e923f3",
+      "manifest": "results/campaigns/replication-20260902-v1/manifests/cells/full__codex__chunk-1-size-30.json"
+    },
+    {
+      "cell": "full/codex/chunk-2-size-30",
+      "expected_trials": 300,
+      "dataset_manifest_sha256": "262f1fffff48d6c1cad0ec796f4a1718f24f97ec4ac1544e07df80458201cc28",
+      "manifest": "results/campaigns/replication-20260902-v1/manifests/cells/full__codex__chunk-2-size-30.json"
+    },
+    {
+      "cell": "full/codex/chunk-3-size-30",
+      "expected_trials": 100,
+      "dataset_manifest_sha256": "51a928715bc952311ae6ea52fdc901a138bb5be9ed614af22b676e7a0a0e09d4",
+      "manifest": "results/campaigns/replication-20260902-v1/manifests/cells/full__codex__chunk-3-size-30.json"
+    },
+    {
+      "cell": "full/llama/chunk-1-size-30",
+      "expected_trials": 300,
+      "dataset_manifest_sha256": "c6bd2bbd6a47f47e8a809efbf05e53b3b5f15ed03ae80524a9db758745522b3c",
+      "manifest": "results/campaigns/replication-20260902-v1/manifests/cells/full__llama__chunk-1-size-30.json"
+    },
+    {
+      "cell": "full/llama/chunk-2-size-30",
+      "expected_trials": 300,
+      "dataset_manifest_sha256": "dacf2f3862b45d39fec1e184e542b3f8f3df525de43adbc65a73ebe6e950a7b2",
+      "manifest": "results/campaigns/replication-20260902-v1/manifests/cells/full__llama__chunk-2-size-30.json"
+    },
+    {
+      "cell": "full/llama/chunk-3-size-30",
+      "expected_trials": 100,
+      "dataset_manifest_sha256": "855e89c0ce4790fdbc3b362565be749478b86a4f06eed665d9a5a594d02ab622",
+      "manifest": "results/campaigns/replication-20260902-v1/manifests/cells/full__llama__chunk-3-size-30.json"
+    },
+    {
+      "cell": "resource/claude/chunk-1-size-30",
+      "expected_trials": 90,
+      "dataset_manifest_sha256": "9d5b4990134bca3f7b236833a3cc6296444feca9f54dae2a432593cf77e6fbcf",
+      "manifest": "results/campaigns/replication-20260902-v1/manifests/cells/resource__claude__chunk-1-size-30.json"
+    },
+    {
+      "cell": "resource/claude/chunk-2-size-30",
+      "expected_trials": 90,
+      "dataset_manifest_sha256": "a7d3ee1797ec80738709f887d4febbed827839f4c70eb8b60184231963e14ddc",
+      "manifest": "results/campaigns/replication-20260902-v1/manifests/cells/resource__claude__chunk-2-size-30.json"
+    },
+    {
+      "cell": "resource/claude/chunk-3-size-30",
+      "expected_trials": 30,
+      "dataset_manifest_sha256": "98d44332a773de71e3f71a42411517e6fa2f5168d41e102a82e789622e84d427",
+      "manifest": "results/campaigns/replication-20260902-v1/manifests/cells/resource__claude__chunk-3-size-30.json"
+    },
+    {
+      "cell": "resource/fable/chunk-1-size-30",
+      "expected_trials": 90,
+      "dataset_manifest_sha256": "24f0b2fd3b85d2ad6db75ae07a6e92c605714c5f2ef32810352ff767124bc88c",
+      "manifest": "results/campaigns/replication-20260902-v1/manifests/cells/resource__fable__chunk-1-size-30.json"
+    },
+    {
+      "cell": "resource/fable/chunk-2-size-30",
+      "expected_trials": 90,
+      "dataset_manifest_sha256": "6eebd2ce63202fec3df28ba4cbf1f24a02d76381dab850a4777daa16cd32fe5d",
+      "manifest": "results/campaigns/replication-20260902-v1/manifests/cells/resource__fable__chunk-2-size-30.json"
+    },
+    {
+      "cell": "resource/fable/chunk-3-size-30",
+      "expected_trials": 30,
+      "dataset_manifest_sha256": "cebc758213fa900e447af190e05b31ede5dfa6d63c705f81cfe32630533d9b9b",
+      "manifest": "results/campaigns/replication-20260902-v1/manifests/cells/resource__fable__chunk-3-size-30.json"
+    },
+    {
+      "cell": "resource/codex/chunk-1-size-30",
+      "expected_trials": 90,
+      "dataset_manifest_sha256": "73b843ad4d89aac8b46f1373dfa6dab6977d771def90a04addac42c40dbaf6d4",
+      "manifest": "results/campaigns/replication-20260902-v1/manifests/cells/resource__codex__chunk-1-size-30.json"
+    },
+    {
+      "cell": "resource/codex/chunk-2-size-30",
+      "expected_trials": 90,
+      "dataset_manifest_sha256": "c35719ec9c47d40b79a987fad001c9209176584e0127a290cea25358a4aba1de",
+      "manifest": "results/campaigns/replication-20260902-v1/manifests/cells/resource__codex__chunk-2-size-30.json"
+    },
+    {
+      "cell": "resource/codex/chunk-3-size-30",
+      "expected_trials": 30,
+      "dataset_manifest_sha256": "2333e25da0a9ea3afa341be9acbb7b8bd80e55b1c999f607a635f35fe4a26d7b",
+      "manifest": "results/campaigns/replication-20260902-v1/manifests/cells/resource__codex__chunk-3-size-30.json"
+    },
+    {
+      "cell": "resource/llama/chunk-1-size-30",
+      "expected_trials": 90,
+      "dataset_manifest_sha256": "e87917250f49481f080989a515082318faadf45300539b783a94647b086df6ec",
+      "manifest": "results/campaigns/replication-20260902-v1/manifests/cells/resource__llama__chunk-1-size-30.json"
+    },
+    {
+      "cell": "resource/llama/chunk-2-size-30",
+      "expected_trials": 90,
+      "dataset_manifest_sha256": "df8094550bd0f72b9a2ca64b424f5d3d9f9bd0fa642c20e080cff577aa48ef29",
+      "manifest": "results/campaigns/replication-20260902-v1/manifests/cells/resource__llama__chunk-2-size-30.json"
+    },
+    {
+      "cell": "resource/llama/chunk-3-size-30",
+      "expected_trials": 30,
+      "dataset_manifest_sha256": "9866473722ae9bb39e59dfd7631ecf6966003fc87ae497c77b52a10e4ec5fc7d",
+      "manifest": "results/campaigns/replication-20260902-v1/manifests/cells/resource__llama__chunk-3-size-30.json"
+    }
+  ],
+  "policy": {
+    "reuse_historical_trajectories": false,
+    "silent_salvage": false,
+    "dedupe_by_task_name": false,
+    "backfill_across_attempts": false,
+    "partial_shard_acceptance": false,
+    "on_failed_attempt": "preserve as FAILED and stop; replacement gets a new attempt_id"
+  }
+}
