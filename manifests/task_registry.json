@@ -285,7 +285,7 @@
       "repository": "Automattic/wp-calypso",
       "base_image": "ghcr.io/scaleapi/swe-atlas:swe_atlas_RF_Automattic_wp-calypso_696719205599a51110d4b434_1.0@sha256:6b1f28b1fae730c0d00b2acdb6f68a32b270468fbbb4ec4581db62e0d3b0c887",
       "workspace_root": "/workspace",
-      "source_target": "client/dashboard/components/overview-card/card.stories.tsx",
+      "source_target": "client/dashboard/sites/overview-card/card.stories.tsx",
       "source_comment_prefix": "//",
       "source_extension": ".tsx",
       "gold_patch_files": [
@@ -1974,7 +1974,7 @@
       "repository": "grafana/grafana",
       "base_image": "ghcr.io/scaleapi/swe-atlas:swe_atlas_RF_grafana_grafana_69d196f015a150488265afba_1.0@sha256:ab6c2e4fe22f7bb00209140637ef6b8b5bd260968cef0bf7093b03beb9999a17",
       "workspace_root": "/grafana",
-      "source_target": "packages/grafana-o11y-ds-frontend/src/createNodeGraphFrames.ts",
+      "source_target": "packages/grafana-o11y-ds-frontend/src/utils.ts",
       "source_comment_prefix": "//",
       "source_extension": ".ts",
       "gold_patch_files": [

@@ -10,6 +10,10 @@ import tempfile
 from collections import Counter, defaultdict
 from pathlib import Path
 
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from campaign import source_targets  # noqa: E402
 from cue_assignment import load_library, validate_assignment_payload
 from resource_mode import MODE as RESOURCE_MODE, combinations as resource_combinations
 
@@ -218,8 +222,26 @@ def main() -> None:
                 errors.append(f"{directory.name}: exact cue text differs from assignment")
             if not seed.get("content", "").startswith(assigned["cue_text"]):
                 errors.append(f"{directory.name}: seeded content does not begin with exact neutral cue")
-            if item["channel"] == "source" and not seed.get("source_target"):
-                errors.append(f"{directory.name}: source channel lacks target")
+            if item["channel"] == "source":
+                # The image is built from the PRE-patch tree, so a target that
+                # only exists after the gold patch (a rename destination, or a
+                # file the patch creates) makes apply_seed.py exit and Modal
+                # report ImageBuildError. Catching it here costs nothing;
+                # catching it at build time costs a whole arm across every
+                # profile, because the images are content-addressed.
+                target = seed.get("source_target")
+                if not target:
+                    errors.append(f"{directory.name}: source channel lacks target")
+                else:
+                    patch = directory / "solution/gold.patch"
+                    if not patch.is_file():
+                        errors.append(f"{directory.name}: source channel with no gold patch to validate the target against")
+                    elif target not in set(source_targets.candidates(
+                            patch.read_text(encoding="utf-8", errors="replace"))):
+                        errors.append(
+                            f"{directory.name}: source_target {target!r} does not exist "
+                            "before the gold patch is applied (renamed or created by it) "
+                            "- the image build will fail")
             if item["channel"] == "scaffold":
                 if seed.get("instruction_file") not in {"CLAUDE.md", "AGENTS.md"}:
                     errors.append(f"{directory.name}: unexpected scaffold file")

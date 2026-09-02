@@ -1,34 +1,19 @@
 #!/usr/bin/env python3
 from __future__ import annotations
-import argparse, csv, json, re, tomllib
+import argparse, csv, json, re, sys, tomllib
 from pathlib import Path
 from typing import Any
 
-SUPPORTED = {'.py':'#','.yml':'#','.yaml':'#','.toml':'#','.am':'#','.sh':'#','.rb':'#',
-             '.go':'//','.ts':'//','.tsx':'//','.js':'//','.jsx':'//','.c':'//','.cc':'//',
-             '.cpp':'//','.h':'//','.hpp':'//','.cue':'//','.rs':'//','.java':'//'}
-TEST_RE = re.compile(r'(^|/)(test|tests|spec|specs)(/|$)', re.I)
-
-def patch_sections(text: str) -> list[tuple[str,str]]:
-    out=[]
-    for chunk in re.split(r'(?=^diff --git )', text, flags=re.M):
-        m=re.match(r'diff --git a/(.+?) b/(.+?)\n', chunk)
-        if m: out.append((m.group(2), chunk))
-    return out
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+# Single source of truth for target selection -- see the module docstring for
+# why the pre-patch path is the only correct choice.
+from campaign.source_targets import (  # noqa: E402
+    all_patch_paths, select)
 
 def source_target(task: Path) -> tuple[str,str,list[str]]:
     text=(task/'solution/gold.patch').read_text(encoding='utf-8', errors='replace')
-    all_paths=[]; candidates=[]
-    for path, section in patch_sections(text):
-        if path not in all_paths: all_paths.append(path)
-        ext=Path(path).suffix.lower()
-        is_new='\nnew file mode ' in section[:500] or '\n--- /dev/null\n' in section[:1200]
-        if ext in SUPPORTED and not TEST_RE.search(path) and not is_new:
-            candidates.append(path)
-    if not candidates:
-        raise ValueError('no safe existing non-test source path in gold patch')
-    path=candidates[0]
-    return path, SUPPORTED[Path(path).suffix.lower()], all_paths
+    path, prefix = select(text)
+    return path, prefix, all_patch_paths(text)
 
 def base_image(task: Path, parsed: dict[str,Any]) -> str:
     env=parsed.get('environment',{})

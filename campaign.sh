@@ -7,6 +7,7 @@
 #   ./campaign.sh run-full     replication-20260902-v1
 #   ./campaign.sh run-resource replication-20260902-v1
 #   ./campaign.sh run-shard    replication-20260902-v1 <full|resource> <1|2|3>
+#   ./campaign.sh repair-shard replication-20260902-v1 <full|resource> <1|2|3>
 #   ./campaign.sh validate     replication-20260902-v1
 #   ./campaign.sh analyze      replication-20260902-v1
 #
@@ -27,6 +28,13 @@
 #   same contract, not a relaxed one: same preflight, same four profiles, same
 #   attempt ledger, same validation gate. It exists so a tight budget can be
 #   spent one shard at a time with a decision point in between.
+#   repair-shard is run-shard's cell-level sibling: it re-runs ONLY the cells a
+#   fresh audit finds missing or invalid, under the SAME preflight, the same
+#   version pins and the same attempt ledger. Every COMPLETE_VALID cell is
+#   frozen and is neither re-run nor re-purchased. It exists so an operator
+#   never has to call campaign.controller by hand, which would skip preflight,
+#   the budget probe and the ledger entirely.
+#
 #   ANY failed preflight or validation STOPS the campaign immediately. There is
 #   no resume-past-failure, no partial-shard acceptance, and no backfilling. A
 #   failed attempt is preserved in the ledger as FAILED; a replacement run gets
@@ -45,11 +53,11 @@ cd "$PROJECT_ROOT"
 
 CMD="${1:-}"; CAMPAIGN_ID="${2:-}"
 usage() {
-  sed -n '2,35p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  sed -n '2,41p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
   exit 2
 }
 [[ -n "$CMD" ]] || usage
-case "$CMD" in prepare|preflight|run-full|run-resource|run-shard|validate|analyze) ;; *) usage ;; esac
+case "$CMD" in prepare|preflight|run-full|run-resource|run-shard|repair-shard|validate|analyze) ;; *) usage ;; esac
 [[ -n "$CAMPAIGN_ID" ]] || { echo "campaign id required (expected $CAMPAIGN_ID_EXPECTED)" >&2; exit 2; }
 if [[ "$CAMPAIGN_ID" != "$CAMPAIGN_ID_EXPECTED" ]]; then
   echo "FATAL: campaign id '$CAMPAIGN_ID' does not match the id this tree is pinned to" >&2
@@ -249,6 +257,41 @@ run_shard() {  # mode shard_index  -- ONE slice, then stop
 }
 
 # ---------------------------------------------------------------------------
+# One ledger entry per profile for one controller invocation. Shared by
+# run-shard and repair-shard so both leave IDENTICAL provenance: every run
+# directory the scheduler produced, recorded whether the attempt succeeded or
+# failed. Returns non-zero if any profile could not be recorded.
+record_attempts() {  # mode shard status started_at result_file note
+  local mode="$1" shard="$2" status="$3" started="$4" resfile="$5" note="$6"
+  local prov_rc=0
+  for p in "${PROFILES[@]}"; do
+    local dir_args=()
+    while IFS= read -r d; do
+      [[ -n "$d" ]] && dir_args+=(--run-dir "$d")
+    done < <("$PY" - "$resfile" "$p" <<'PYEOF'
+import json, sys
+try:
+    res = json.load(open(sys.argv[1]))
+except Exception:
+    sys.exit(0)
+for d in (res.get("run_dirs") or {}).get(sys.argv[2], []) or []:
+    print(d)
+PYEOF
+)
+    if [[ ${#dir_args[@]} -eq 0 ]]; then
+      audit "attempt_no_output" "mode=$mode" "profile=$p" "shard=$shard"
+      prov_rc=1
+      continue
+    fi
+    "$PY" -m campaign.provenance record \
+      --mode "$mode" --profile "$p" --shard "$shard" \
+      ${dir_args[@]+"${dir_args[@]}"} --status "$status" --started-at "$started" \
+      --note "$note" || prov_rc=1
+  done
+  return "$prov_rc"
+}
+
+# ---------------------------------------------------------------------------
 # All four profiles for ONE shard, under the bounded work-conserving scheduler.
 #
 # Replaces the old "claude, then fable, then codex, then llama" serialization:
@@ -285,30 +328,8 @@ run_profiles() {  # mode shard_index
   # plus any permitted retries). A failed attempt stays in the ledger.
   local status="auto"; [[ "$rc" -ne 0 ]] && status="failed"
   local prov_rc=0
-  for p in "${PROFILES[@]}"; do
-    local dir_args=()
-    while IFS= read -r d; do
-      [[ -n "$d" ]] && dir_args+=(--run-dir "$d")
-    done < <("$PY" - "$resfile" "$p" <<'PYEOF'
-import json, sys
-try:
-    res = json.load(open(sys.argv[1]))
-except Exception:
-    sys.exit(0)
-for d in (res.get("run_dirs") or {}).get(sys.argv[2], []) or []:
-    print(d)
-PYEOF
-)
-    if [[ ${#dir_args[@]} -eq 0 ]]; then
-      audit "attempt_no_output" "mode=$mode" "profile=$p" "shard=$shard"
-      prov_rc=1
-      continue
-    fi
-    "$PY" -m campaign.provenance record \
-      --mode "$mode" --profile "$p" --shard "$shard" \
-      ${dir_args[@]+"${dir_args[@]}"} --status "$status" --started-at "$started" \
-      --note "campaign.sh $RUN_CONTEXT $mode shard $shard (adaptive scheduler)" || prov_rc=1
-  done
+  record_attempts "$mode" "$shard" "$status" "$started" "$resfile" \
+    "campaign.sh $RUN_CONTEXT $mode shard $shard (adaptive scheduler)" || prov_rc=$?
   rm -f "$resfile"
 
   if [[ "$rc" -ne 0 || "$prov_rc" -ne 0 ]]; then
@@ -320,6 +341,144 @@ PYEOF
        create NEW attempt_ids, or investigate first."
   fi
   audit "run_ok" "mode=$mode" "profile=all" "shard=$shard"
+}
+
+# ---------------------------------------------------------------------------
+# repair-shard: re-run ONLY the cells a fresh audit finds missing or invalid.
+#
+# The 2026-09-02 FULL shard-1 crash left 976 valid trajectories on disk and 214
+# cells outstanding. The only way to finish it by hand was to call
+# campaign.controller directly with a repair plan -- which skips preflight, the
+# budget probe, the version pins and the attempt ledger. This command exists so
+# that is never the shortest path. It is the SAME contract as run-shard, only
+# the work unit is a cell instead of a base-task batch.
+#
+# COMPLETE_VALID cells are frozen: they are absent from the plan by
+# construction, and the gate below re-checks that before anything launches.
+repair_shard() {  # mode shard_index -- ONLY the outstanding cells, then stop
+  local mode="$1" shard="$2"
+  RUN_CONTEXT="repair-shard"
+  local plan_file="$RESULTS_ROOT/provenance/${mode}-shard${shard}-repair-plan.json"
+
+  case "$mode" in full|resource) ;; *) die "unknown mode '$mode' (expected full|resource)" ;; esac
+  case "$shard" in 1|2|3) ;; *) die "unknown shard '$shard' (expected 1|2|3)" ;; esac
+  say "repair-shard $mode shard $shard"
+
+  # (2) Task definitions first. A source-channel seed pointing at a path that
+  # only exists after the gold patch fails the IMAGE BUILD, so it would burn
+  # the repair attempt for a whole arm across all four profiles before a single
+  # token was spent. Cheap to check, expensive to discover at build time.
+  info "checking task definitions (source-channel seed targets)"
+  "$PY" -m campaign.source_targets audit --mode "$mode" --shard "$shard" >/dev/null || {
+    audit "repair_task_check_failed" "mode=$mode" "shard=$shard"
+    die "task definition check failed - nothing was launched.
+       Run: $PY -m campaign.source_targets audit --mode $mode --shard $shard"
+  }
+
+  # (4) Fresh cell-level audit -> frozen repair plan. This also fails closed on
+  # duplicate valid trajectories, which are a provenance question for a human.
+  info "auditing cells and writing the repair plan"
+  "$PY" -m campaign.cells --mode "$mode" --shard "$shard" --write || {
+    audit "repair_audit_failed" "mode=$mode" "shard=$shard"
+    die "cell audit refused to produce a repair plan - nothing was launched."
+  }
+  [[ -f "$plan_file" ]] || die "no repair plan at $plan_file - nothing was launched."
+
+  # (5) Prove the plan touches no COMPLETE_VALID cell, and report the shape of
+  # the work. Anything that is already valid must not appear here at all.
+  "$PY" - "$mode" "$shard" "$plan_file" <<'PY' || { audit "repair_gate_failed" "mode=$1" "shard=$2"; die "repair plan gate failed - nothing was launched."; }
+import json, sys
+from campaign import cells
+
+mode, shard, plan_path = sys.argv[1], int(sys.argv[2]), sys.argv[3]
+plan = json.loads(open(plan_path).read())
+res = cells.audit(mode, shard)
+frozen = set(cells.frozen_cells(res))
+planned = {c["cell_key"] for v in plan["by_profile"].values() for c in v}
+
+overlap = sorted(planned & frozen)
+if overlap:
+    print(f"FAIL: {len(overlap)} planned cell(s) already hold a valid trajectory:")
+    for k in overlap[:10]:
+        print(f"  {k}")
+    sys.exit(1)
+if not planned:
+    print("Nothing to repair: every cell is COMPLETE_VALID or PROVIDER_BLOCKED.")
+    sys.exit(3)
+
+blocked = [k for k, r in res["records"].items() if r.status == cells.PROVIDER_BLOCKED]
+print(f"  frozen (COMPLETE_VALID, never re-run) : {len(frozen)}")
+print(f"  provider-blocked (excluded, not data) : {len(blocked)}")
+print(f"  to repair                             : {len(planned)}")
+for p, v in sorted(plan["by_profile"].items()):
+    if v:
+        print(f"      {p:<8} {len(v)}")
+PY
+
+  # (3) Budget, from the gateway, right now. Non-billable: an empty message
+  # list is rejected before inference and still carries the budget headers.
+  "$PY" - <<'PY' || die "budget probe failed - nothing was launched."
+import sys
+from campaign import lib
+b = lib.probe_budget()
+if not b.ok:
+    print(f"FAIL: budget probe: {b.error}")
+    sys.exit(1)
+print(f"  spend ${b.spend:,.2f} / ${b.max_budget:,.2f}   remaining ${b.remaining:,.2f}")
+PY
+
+  # (1) The normal campaign preflight. Same gate as run-shard: version pins,
+  # dataset integrity, credentials, budget headroom for the remaining work.
+  do_preflight "$mode shard $shard (repair)"
+
+  # (6) Execute ONLY the planned cells.
+  audit "repair_start" "mode=$mode" "shard=$shard" "plan=$plan_file"
+  local resfile; resfile="$(mktemp)"
+  local started; started="$($PY -c 'import datetime;print(datetime.datetime.now(datetime.timezone.utc).isoformat())')"
+  local rc=0
+  "$PY" -m campaign.controller --mode "$mode" --shard "$shard" \
+      --repair-plan "$plan_file" --result-file "$resfile" || rc=$?
+
+  # (7) Ledger, either way. A failed repair attempt is preserved, never
+  # backfilled, exactly as a failed run-shard attempt is.
+  local status="auto"; [[ "$rc" -ne 0 ]] && status="failed"
+  local prov_rc=0
+  record_attempts "$mode" "$shard" "$status" "$started" "$resfile" \
+    "campaign.sh repair-shard $mode shard $shard" || prov_rc=$?
+  rm -f "$resfile"
+  if [[ "$rc" -ne 0 || "$prov_rc" -ne 0 ]]; then
+    audit "repair_failed" "mode=$mode" "shard=$shard" "controller_rc=$rc"
+    die "repair of $mode/shard $shard did NOT complete cleanly.
+       Attempts are preserved in provenance/attempts.jsonl; the controller log is
+       under logs/controller-$mode-shard$shard.jsonl.
+       Campaign STOPPED. Investigate before repairing again."
+  fi
+
+  # (8) Re-audit and report where the shard now stands. A shard that is still
+  # incomplete is reported as such -- this command never declares success on
+  # its own say-so.
+  say "re-auditing $mode shard $shard"
+  "$PY" -m campaign.cells --mode "$mode" --shard "$shard" --write || true
+  "$PY" - "$mode" "$shard" <<'PY'
+import sys
+from campaign import cells
+mode, shard = sys.argv[1], int(sys.argv[2])
+res = cells.audit(mode, shard)
+v = cells.validate_shard_complete(res)
+print(f"  complete_valid   {v['complete_valid']} / {v['expected']}")
+print(f"  provider_blocked {v['provider_blocked']}")
+print(f"  accounted        {v['accounted']} / {v['expected']}")
+print(f"  outstanding      {v['outstanding_total']}")
+for p in v["problems"]:
+    print(f"  ! {p}")
+PY
+  validate_progress "$mode shard $shard (repair)"
+
+  # (9) Stop.
+  audit "repair_complete" "mode=$mode" "shard=$shard"
+  say "repair-shard $mode shard $shard complete - STOPPING as instructed"
+  info "This command repairs exactly one shard. Nothing further was launched."
+  info "Final gate:  ./campaign.sh validate $CAMPAIGN_ID"
 }
 
 run_mode() {  # full | resource
@@ -358,10 +517,13 @@ shift 2 || true
 # run-shard takes two extra positionals: <mode> <shard>. Every other command's
 # argument handling is untouched.
 SHARD_MODE=""; SHARD_INDEX=""; SHARD_NEW_ATTEMPT=0
-if [[ "$CMD" == "run-shard" ]]; then
+if [[ "$CMD" == "run-shard" || "$CMD" == "repair-shard" ]]; then
   SHARD_MODE="${1:-}"; SHARD_INDEX="${2:-}"
   if [[ -z "$SHARD_MODE" || -z "$SHARD_INDEX" ]]; then
-    echo "usage: ./campaign.sh run-shard $CAMPAIGN_ID_EXPECTED <full|resource> <1|2|3> [--new-attempt]" >&2
+    case "$CMD" in
+      run-shard)    echo "usage: ./campaign.sh run-shard $CAMPAIGN_ID_EXPECTED <full|resource> <1|2|3> [--new-attempt]" >&2 ;;
+      repair-shard) echo "usage: ./campaign.sh repair-shard $CAMPAIGN_ID_EXPECTED <full|resource> <1|2|3>" >&2 ;;
+    esac
     exit 2
   fi
   shift 2 || true
@@ -384,6 +546,7 @@ case "$CMD" in
   run-full)     run_mode full ;;
   run-resource) run_mode resource ;;
   run-shard)    run_shard "$SHARD_MODE" "$SHARD_INDEX" ;;
+  repair-shard) repair_shard "$SHARD_MODE" "$SHARD_INDEX" ;;
   validate)
       say "validate $CAMPAIGN_ID (full campaign gate)"
       "$PY" -m campaign.provenance build || die "corpus build reported errors"

@@ -471,10 +471,15 @@ class TestOperatorInterface(unittest.TestCase):
     def test_operator_commands_are_still_accepted(self):
         body = self.SH.read_text()
         for cmd in ("prepare", "preflight", "run-full", "run-resource",
-                    "run-shard", "validate", "analyze"):
+                    "run-shard", "repair-shard", "validate", "analyze"):
             self.assertIn(cmd, body)
+        resolved = body.replace("$CAMPAIGN_ID_EXPECTED", "replication-20260902-v1")
         self.assertIn("./campaign.sh run-shard replication-20260902-v1 <full|resource> <1|2|3>",
-                      body.replace("$CAMPAIGN_ID_EXPECTED", "replication-20260902-v1"))
+                      resolved)
+        # repair-shard is a campaign command, not a controller invocation: it
+        # must be reachable by the same operator-facing shape.
+        self.assertIn("./campaign.sh repair-shard replication-20260902-v1 <full|resource> <1|2|3>",
+                      resolved)
 
     def test_legacy_sequential_path_is_still_reachable(self):
         body = self.SH.read_text()

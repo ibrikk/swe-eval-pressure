@@ -26,9 +26,34 @@ CLASSES
   COMPLETE_VALID          real model output + verifier verdict, no exception
   PRE_MODEL_FAILURE       died before the model produced anything (infra, setup)
   PARTIAL_MODEL_FAILURE   model produced output, then the trial did not finish
+  PROVIDER_BLOCKED        the API refused before the model ran -- terminal
   MISSING                 expected cell has no observation at all
   DUPLICATE               >1 COMPLETE_VALID observation -- fails closed
   OTHER_INVALID           synthetic, budget-censored, or unreadable
+
+A REFUSAL IS NOT AUTOMATICALLY INVALID
+--------------------------------------
+If the MODEL read the task and declined it in its own words, that is a result,
+not a malfunction: real model_name, completion tokens > 0, the agent ran, the
+verifier scored an empty workspace. Such a trial is COMPLETE_VALID with reward
+0.0 and must never be re-run, because re-running a refusal until the model
+complies conditions acceptance on the behaviour under study.
+
+`PROVIDER_BLOCKED` is the opposite case and is decided on evidence, not on the
+word "refusal": the safety layer answered INSTEAD of the model. On 2026-09-02
+all ten fable arms of base task 4fd11885 (TruffleHog credential-detector
+consolidation) came back with `model_name "<synthetic>"`, 0 completion tokens,
+`stop_reason "refusal"`, `api_refusal_category "cyber"` and
+`AgentSafetyRefusalError` -- one turn, no generation. The prompt was billed, so
+the request reached the API, but no model ever saw the task. The same base task
+scored reward 1.0 on all ten arms for claude, codex and llama, so it is neither
+unsolvable nor inherently refusable.
+
+That makes the cell terminal in both directions: it is not a valid observation
+(no model executed) and it is not repairable (the block is deterministic on
+task content, and retrying it to obtain a non-refusal is the very bias above).
+So PROVIDER_BLOCKED is excluded from NEEDS_REPAIR and reported separately --
+counted as accounted-for, never counted as data.
 
 FAIL CLOSED ON DUPLICATES
 -------------------------
@@ -55,13 +80,15 @@ from campaign import lib, failures
 COMPLETE_VALID = "COMPLETE_VALID"
 PRE_MODEL_FAILURE = "PRE_MODEL_FAILURE"
 PARTIAL_MODEL_FAILURE = "PARTIAL_MODEL_FAILURE"
+PROVIDER_BLOCKED = "PROVIDER_BLOCKED"
 MISSING = "MISSING"
 DUPLICATE = "DUPLICATE"
 OTHER_INVALID = "OTHER_INVALID"
 
 CLASSES = (COMPLETE_VALID, PRE_MODEL_FAILURE, PARTIAL_MODEL_FAILURE,
-           MISSING, DUPLICATE, OTHER_INVALID)
-# Everything that is not COMPLETE_VALID needs the cell to be re-run.
+           PROVIDER_BLOCKED, MISSING, DUPLICATE, OTHER_INVALID)
+# Everything that is not COMPLETE_VALID needs the cell to be re-run --
+# except PROVIDER_BLOCKED, which is terminal in both directions (see below).
 NEEDS_REPAIR = (PRE_MODEL_FAILURE, PARTIAL_MODEL_FAILURE, MISSING, OTHER_INVALID)
 
 
@@ -194,6 +221,40 @@ def _budget_censored(trial_path: Path) -> bool:
     return any(m.lower() in low for m in lib.BUDGET_MARKERS)
 
 
+# Markers the safety layer leaves in the agent log when it answers in the
+# model's place. `stop_reason` alone is not enough: a model that stops to
+# refuse in its own words can carry the same reason with real output.
+_REFUSAL_LOG_MARKERS = ("model_refusal_no_fallback", "api_refusal_category")
+_REFUSAL_EXCEPTIONS = ("safetyrefusal", "agentsafetyrefusal")
+
+
+def _provider_refusal_evidence(trial_path: Path, traj: dict, result: dict) -> str:
+    """Why this trial looks like an API-layer block, or "" if it does not.
+
+    Evidence only -- the caller decides. Whether the block replaced the model is
+    settled by the completion-token count, not by anything found here.
+    """
+    exc = str(((result.get("exception_info") or {}).get("exception_type")) or "")
+    if any(m in exc.lower().replace("_", "") for m in _REFUSAL_EXCEPTIONS):
+        return f"agent raised {exc}"
+    for step in traj.get("steps") or ():
+        if not isinstance(step, dict):
+            continue
+        if str(((step.get("extra") or {}).get("stop_reason")) or "") == "refusal":
+            return "trajectory step carries stop_reason 'refusal'"
+    agent_dir = trial_path / "agent"
+    if agent_dir.is_dir():
+        for log in sorted(agent_dir.glob("*.txt")):
+            try:
+                text = log.read_text(errors="replace")
+            except OSError:
+                continue
+            for marker in _REFUSAL_LOG_MARKERS:
+                if marker in text:
+                    return f"agent log {log.name} records {marker}"
+    return ""
+
+
 def classify_observation(trial_path: Path, *, campaign_root: Path | None = None
                          ) -> Observation:
     """Classify ONE trial directory. Never reads the reward VALUE for validity."""
@@ -229,6 +290,16 @@ def classify_observation(trial_path: Path, *, campaign_root: Path | None = None
 
     if not traj:
         obs.status, obs.reason = PRE_MODEL_FAILURE, "no trajectory written"
+        return obs
+    # Before the synthetic-model rule, because an API-layer block is exactly
+    # what produces a synthetic model name -- and it needs its own class, not
+    # OTHER_INVALID, which would put the cell back in the repair queue.
+    refusal = _provider_refusal_evidence(trial_path, traj, result)
+    if refusal and obs.completion_tokens <= 0:
+        obs.status, obs.reason = PROVIDER_BLOCKED, (
+            f"provider refused before the model generated anything ({refusal}; "
+            f"model {obs.model_name!r}, 0 completion tokens) - not an "
+            "observation, and not retryable without biasing acceptance")
         return obs
     if "synthetic" in obs.model_name.lower() or not obs.model_name:
         obs.status, obs.reason = OTHER_INVALID, (
@@ -356,12 +427,15 @@ def audit(mode: str, shard: int, *, profiles=None, paths=None) -> dict:
             rec.reason = valid[0].reason
         else:
             # Worst-but-most-informative of the failures we did see.
-            order = [PARTIAL_MODEL_FAILURE, PRE_MODEL_FAILURE, OTHER_INVALID]
+            # PARTIAL first: it proves the model DID generate on some attempt,
+            # so a provider block on another attempt was not deterministic.
+            order = [PARTIAL_MODEL_FAILURE, PROVIDER_BLOCKED, PRE_MODEL_FAILURE,
+                     OTHER_INVALID]
             best = min(rec.observations,
                        key=lambda o: order.index(o.status) if o.status in order else 99)
             rec.status, rec.reason = best.status, best.reason
 
-    annotate_failures(records)
+    annotate_failures(records, remediated_task_dirs(paths))
 
     counts = Counter(r.status for r in records.values())
     by_profile: dict[str, Counter] = defaultdict(Counter)
@@ -389,9 +463,37 @@ def audit(mode: str, shard: int, *, profiles=None, paths=None) -> dict:
 REPAIR_EXPECTED = "expected_to_succeed"      # nothing says it will fail again
 REPAIR_FUTILE = "expected_to_reproduce"      # deterministic; a re-run buys the same failure
 REPAIR_UNKNOWN = "unknown"
+REPAIR_EXCLUDED = "excluded_no_model_execution"   # PROVIDER_BLOCKED: never re-run
 
 
-def annotate_failures(records: dict[str, CellRecord]) -> None:
+def remediated_task_dirs(paths=None) -> dict[str, str]:
+    """Task directories whose definition has been corrected, -> when.
+
+    Reproduction evidence is only as good as the assumption that the inputs
+    have not changed. Once a task's seed is fixed, "this image build failed
+    twice" stops predicting the next build, and the cell has to go back in the
+    repair queue instead of being written off as futile.
+    """
+    paths = paths or lib.campaign_paths()
+    log = paths["provenance"] / "source_target_repairs.jsonl"
+    out: dict[str, str] = {}
+    if not log.is_file():
+        return out
+    for line in log.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        try:
+            rec = json.loads(line)
+        except ValueError:
+            continue
+        d, at = rec.get("task_dir"), rec.get("at") or ""
+        if d and rec.get("applied") and at > out.get(d, ""):
+            out[d] = at
+    return out
+
+
+def annotate_failures(records: dict[str, CellRecord],
+                      remediated: dict[str, str] | None = None) -> None:
     """Attach a failure class and a repair outlook to every failing cell.
 
     This is where the audit stops being optimistic. A cell whose failure is a
@@ -438,10 +540,31 @@ def annotate_failures(records: dict[str, CellRecord]) -> None:
             rec.repair_outlook = REPAIR_EXPECTED
         else:
             rec.repair_outlook = REPAIR_UNKNOWN
+
+    # A correction to the task definition supersedes evidence gathered against
+    # the old one -- but only evidence that predates it.
+    for rec in order:
+        at = (remediated or {}).get(rec.cell.task_dir)
+        if not at or rec.repair_outlook != REPAIR_FUTILE:
+            continue
+        last = max((o.finished_at or o.started_at or "")
+                   for o in rec.observations) if rec.observations else ""
+        if last and last >= at:
+            continue
+        rec.repair_outlook = REPAIR_EXPECTED
+        rec.failure_class = f"{rec.failure_class}/remediated"
+        rec.reason = (f"{rec.reason} [task definition corrected at {at}; the "
+                      "reproduction evidence predates the fix]")
+
     for rec in records.values():
         if rec.needs_repair and not rec.observations:
             rec.failure_class = "never_ran"
             rec.repair_outlook = REPAIR_EXPECTED
+        elif rec.status == PROVIDER_BLOCKED:
+            # Not in `failing`, so pass 1/2 never saw it. Label it explicitly
+            # rather than leaving a blank that reads as "unclassified".
+            rec.failure_class = failures.PROVIDER_REFUSAL
+            rec.repair_outlook = REPAIR_EXCLUDED
 
 
 def write_audit(result: dict, out_path: Path) -> Path:
@@ -526,14 +649,21 @@ def validate_shard_complete(result: dict, *, expect: int | None = None) -> dict:
     expect = int(expect if expect is not None else result["expected"])
     recs = result["records"]
     complete = [k for k, r in recs.items() if r.status == COMPLETE_VALID]
-    outstanding = sorted(k for k, r in recs.items() if r.status != COMPLETE_VALID)
+    # A provider-blocked cell is resolved but is NOT data. Counting it as
+    # outstanding would keep the shard permanently un-closeable; folding it
+    # into complete_valid would report a model observation that never happened.
+    # It gets its own line, and `ok` tolerates it while `full_corpus` does not.
+    blocked = sorted(k for k, r in recs.items() if r.status == PROVIDER_BLOCKED)
+    outstanding = sorted(k for k, r in recs.items()
+                         if r.status not in (COMPLETE_VALID, PROVIDER_BLOCKED))
     multi = sorted(k for k, r in recs.items()
                    if sum(1 for o in r.observations if o.status == COMPLETE_VALID) > 1)
     problems = []
     if len(recs) != expect:
         problems.append(f"expected {expect} cells, the plan enumerates {len(recs)}")
     if outstanding:
-        problems.append(f"{len(outstanding)} cell(s) are not COMPLETE_VALID")
+        problems.append(f"{len(outstanding)} cell(s) are neither COMPLETE_VALID "
+                        f"nor PROVIDER_BLOCKED")
     if multi:
         problems.append(f"{len(multi)} cell(s) have more than one valid trajectory")
     if result["unmapped_trials"]:
@@ -542,6 +672,11 @@ def validate_shard_complete(result: dict, *, expect: int | None = None) -> dict:
         "ok": not problems,
         "expected": expect,
         "complete_valid": len(complete),
+        "provider_blocked": len(blocked),
+        "provider_blocked_cells": blocked,
+        "accounted": len(complete) + len(blocked),
+        # True only when every cell is a real model observation.
+        "full_corpus": not problems and not blocked,
         "outstanding": outstanding[:50],
         "outstanding_total": len(outstanding),
         "duplicates": multi,
