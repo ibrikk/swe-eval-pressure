@@ -8,6 +8,7 @@ SHARD_SIZE=""
 SHARD_INDEX=""
 INSTALL_ONLY=0
 DATASET_OVERRIDE=""
+SHARD_LABEL_OVERRIDE=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --shard) SHARD_SPEC="${2:-}"; shift 2 ;;
@@ -15,6 +16,7 @@ while [[ $# -gt 0 ]]; do
     --shard-index) SHARD_INDEX="${2:-}"; shift 2 ;;
     --install-only) INSTALL_ONLY=1; shift ;;
     --dataset-override) DATASET_OVERRIDE="${2:-}"; shift 2 ;;
+    --shard-label) SHARD_LABEL_OVERRIDE="${2:-}"; shift 2 ;;
     -h|--help)
       cat <<'EOF'
 Usage:
@@ -62,6 +64,9 @@ shard_label=""
 if [[ -n "$DATASET_OVERRIDE" ]]; then
   DATASET="$DATASET_OVERRIDE"
   shard_label="-key-shard"
+  # A caller that pre-sharded the dataset itself (e.g. the campaign runner)
+  # supplies its own label so the job name still records which shard this is.
+  [[ -n "$SHARD_LABEL_OVERRIDE" ]] && shard_label="$SHARD_LABEL_OVERRIDE"
 fi
 require_dir "$DATASET" "dataset; run ./lab.sh prepare $MODE"
 if [[ -z "$DATASET_OVERRIDE" && -n "$SHARD_SPEC" ]]; then
@@ -117,6 +122,7 @@ profile_version_requested=""
 case "$PROFILE" in
   codex) profile_version_requested="${CODEX_VERSION:-}" ;;
   llama) profile_version_requested="${MINI_SWE_VERSION:-}" ;;
+  claude|fable) profile_version_requested="${CLAUDE_CODE_VERSION:-}" ;;
 esac
 python3 - "$output/run_metadata.json" "$MODE" "$PROFILE" "$PROFILE_AGENT" "$PROFILE_MODEL_FOR_HARBOR" "$DATASET" "$ALLOW_INTERNET" "$HARBOR_REPEATS" "$HARBOR_CONCURRENCY" "$SHARD_SPEC" "$SHARD_SIZE" "$SHARD_INDEX" "$profile_version_requested" "$PROFILE_CONFIG_FILE" "$HARBOR_DISABLE_VERIFICATION" "$study_manifest" "$INSTALL_ONLY" "${SWE_LITELLM_KEY_INDEX:-1}" "${SWE_LITELLM_KEY_COUNT:-1}" "$LITE_LLM_TPM_LIMIT" <<'PYMETA'
 import hashlib, json, sys
@@ -200,6 +206,11 @@ esac
 if [[ -n "$PROFILE_CONFIG_FILE" ]]; then require_file "$PROFILE_CONFIG_FILE" "$PROFILE config"; args+=(--ak "config_file=$PROFILE_CONFIG_FILE"); fi
 if [[ "$PROFILE" == "codex" && -n "${CODEX_VERSION:-}" ]]; then args+=(--ak "version=$CODEX_VERSION"); fi
 if [[ "$PROFILE" == "llama" && -n "${MINI_SWE_VERSION:-}" ]]; then args+=(--ak "version=$MINI_SWE_VERSION"); fi
+# Harbor's ClaudeCode agent takes the same `version` kwarg as codex/mini-swe and
+# turns it into `npm install -g @anthropic-ai/claude-code@<v>` (musl) or
+# `bootstrap.sh -- <v>`. Unset => Harbor installs latest, which is what the
+# Aug 2026 corpus did and why its claude-code build drifted mid-study.
+if [[ "$PROFILE_AGENT" == "claude-code" && -n "${CLAUDE_CODE_VERSION:-}" ]]; then args+=(--ak "version=$CLAUDE_CODE_VERSION"); fi
 if [[ "$HARBOR_DISABLE_VERIFICATION" == 1 ]]; then args+=(--disable-verification); fi
 count=0; for d in "$DATASET"/*; do [[ -d "$d" && -f "$d/task.toml" ]] && count=$((count+1)); done
 [[ "$count" -gt 0 ]] || die "no tasks in $DATASET"
