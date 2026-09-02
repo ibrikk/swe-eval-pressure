@@ -238,9 +238,7 @@ run_shard() {  # mode shard_index  -- ONE slice, then stop
 
   # Identical contract to one iteration of run_mode's loop.
   do_preflight "$mode shard $shard (single)"
-  for p in "${PROFILES[@]}"; do
-    run_one "$mode" "$p" "$shard"
-  done
+  run_profiles "$mode" "$shard"
   validate_progress "$mode shard $shard (single)"
 
   audit "shard_complete" "mode=$mode" "shard=$shard"
@@ -248,6 +246,80 @@ run_shard() {  # mode shard_index  -- ONE slice, then stop
   info "This command runs exactly one shard. Nothing further was launched."
   info "Next shard:  ./campaign.sh run-shard $CAMPAIGN_ID $mode $((shard + 1))"
   info "Final gate:  ./campaign.sh validate $CAMPAIGN_ID"
+}
+
+# ---------------------------------------------------------------------------
+# All four profiles for ONE shard, under the bounded work-conserving scheduler.
+#
+# Replaces the old "claude, then fable, then codex, then llama" serialization:
+# every profile that still has queued work progresses concurrently, freed
+# capacity is redistributed immediately, and llama no longer waits behind the
+# fixed profiles. Concurrency is bounded by per-profile caps, a global worker
+# ceiling, and a throttle-down-only TPM safety ceiling.
+#
+# CAMPAIGN_SCHEDULER=legacy restores the old sequential path unchanged, as an
+# operator escape hatch. The per-cell contract is identical either way: every
+# attempt is recorded in provenance, failures are preserved, never backfilled.
+run_profiles() {  # mode shard_index
+  local mode="$1" shard="$2"
+
+  if [[ "${CAMPAIGN_SCHEDULER:-adaptive}" == "legacy" ]]; then
+    info "CAMPAIGN_SCHEDULER=legacy - running profiles sequentially (old behaviour)"
+    for p in "${PROFILES[@]}"; do
+      run_one "$mode" "$p" "$shard"
+    done
+    return
+  fi
+
+  say "run $mode / shard $shard / all ${#PROFILES[@]} profiles (bounded adaptive scheduler)"
+  local resfile; resfile="$(mktemp)"
+  local started; started="$($PY -c 'import datetime;print(datetime.datetime.now(datetime.timezone.utc).isoformat())')"
+  audit "run_start" "mode=$mode" "profile=all" "shard=$shard" "scheduler=adaptive"
+
+  local rc=0
+  "$PY" -m campaign.controller --mode "$mode" --shard "$shard" \
+      --result-file "$resfile" || rc=$?
+
+  # Record every profile's attempt EITHER WAY, with every run directory the
+  # scheduler produced for that cell (a cell may span several Harbor batches,
+  # plus any permitted retries). A failed attempt stays in the ledger.
+  local status="auto"; [[ "$rc" -ne 0 ]] && status="failed"
+  local prov_rc=0
+  for p in "${PROFILES[@]}"; do
+    local dir_args=()
+    while IFS= read -r d; do
+      [[ -n "$d" ]] && dir_args+=(--run-dir "$d")
+    done < <("$PY" - "$resfile" "$p" <<'PYEOF'
+import json, sys
+try:
+    res = json.load(open(sys.argv[1]))
+except Exception:
+    sys.exit(0)
+for d in (res.get("run_dirs") or {}).get(sys.argv[2], []) or []:
+    print(d)
+PYEOF
+)
+    if [[ ${#dir_args[@]} -eq 0 ]]; then
+      audit "attempt_no_output" "mode=$mode" "profile=$p" "shard=$shard"
+      prov_rc=1
+      continue
+    fi
+    "$PY" -m campaign.provenance record \
+      --mode "$mode" --profile "$p" --shard "$shard" \
+      ${dir_args[@]+"${dir_args[@]}"} --status "$status" --started-at "$started" \
+      --note "campaign.sh $RUN_CONTEXT $mode shard $shard (adaptive scheduler)" || prov_rc=1
+  done
+  rm -f "$resfile"
+
+  if [[ "$rc" -ne 0 || "$prov_rc" -ne 0 ]]; then
+    audit "attempt_failed" "mode=$mode" "shard=$shard" "controller_rc=$rc"
+    die "$mode/shard $shard did NOT complete cleanly.
+       Attempts are preserved in provenance/attempts.jsonl; the controller log is
+       under logs/controller-$mode-shard$shard.jsonl.
+       Campaign STOPPED. Do not backfill: rerun this shard with --new-attempt to
+       create NEW attempt_ids, or investigate first."
+  fi
+  audit "run_ok" "mode=$mode" "profile=all" "shard=$shard"
 }
 
 run_mode() {  # full | resource
@@ -271,9 +343,7 @@ run_mode() {  # full | resource
 
   for i in "${SHARDS[@]}"; do
     do_preflight "$mode shard $i"
-    for p in "${PROFILES[@]}"; do
-      run_one "$mode" "$p" "$i"
-    done
+    run_profiles "$mode" "$i"
     validate_progress "$mode after shard $i"
   done
 

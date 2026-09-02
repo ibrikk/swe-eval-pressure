@@ -260,6 +260,10 @@ class Trial:
     status: str
     reward: float | None
     resolved: bool | None
+    # cache READS are not metered by the gateway (total_cached_tokens ==
+    # total_cache_read_input_tokens, verified field-by-field); the scheduler
+    # needs them to compute metered tokens, so carry them through.
+    cached_tokens: int | None = None
 
 
 def scan_run_dir(run_dir: Path) -> list[Trial]:
@@ -311,6 +315,7 @@ def scan_run_dir(run_dir: Path) -> list[Trial]:
                 status=status,
                 reward=reward,
                 resolved=(reward >= 1.0) if reward is not None else None,
+                cached_tokens=fm.get("total_cached_tokens"),
             ))
     return out
 

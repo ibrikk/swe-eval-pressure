@@ -84,7 +84,8 @@ def validate(strict_profiles=lib.PROFILES) -> dict:
     bad_paths = []
     for a in accepted:
         try:
-            lib.assert_campaign_path(lib.PROJECT_ROOT / a["run_dir"], "run dir")
+            for _d in (a.get("run_dirs") or [a["run_dir"]]):
+                lib.assert_campaign_path(lib.PROJECT_ROOT / _d, "run dir")
         except ValueError as exc:
             bad_paths.append(str(exc).splitlines()[0])
     chk.add("X2", not bad_paths,
@@ -184,6 +185,79 @@ def validate(strict_profiles=lib.PROFILES) -> dict:
     chk.add("R11", not lineage_missing,
             "resource control arms carry explicit FULL lineage" if not lineage_missing
             else str(lineage_missing))
+
+    # RT1/RT2 - retry lineage must be EXPLICIT, never a silent replacement.
+    #
+    # The Aug 2026 failure was a silent dedupe/backfill: a later trial quietly
+    # standing in for an earlier one under the same task_name. A retry is only
+    # legitimate here if the ledger records the lineage AND the failed original
+    # is still on disk. Absence of a ledger entry is not "no retries happened";
+    # it is only that when no retry trial appears in the corpus either.
+    from campaign import failures as _failures
+
+    ledger_path = paths["provenance"] / "retries.jsonl"
+    retry_rows, malformed = [], []
+    if ledger_path.is_file():
+        for i, line in enumerate(ledger_path.read_text().splitlines(), 1):
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                rec = json.loads(line)
+            except json.JSONDecodeError as exc:
+                malformed.append(f"line {i}: {exc}")
+                continue
+            required = ("original_trial_id", "retry_trial_id", "retry_number",
+                        "failure_class", "failure_reason", "model_started",
+                        "started_at", "accepted_status")
+            missing = [k for k in required if rec.get(k) in (None, "")]
+            if missing:
+                malformed.append(f"line {i}: missing {missing}")
+                continue
+            if rec["failure_class"] == _failures.BUDGET:
+                malformed.append(f"line {i}: budget failure recorded as a retry - never permitted")
+            if not (1 <= int(rec["retry_number"]) <= _failures.MAX_RETRIES):
+                malformed.append(
+                    f"line {i}: retry_number {rec['retry_number']} outside 1..{_failures.MAX_RETRIES}")
+            retry_rows.append(rec)
+
+    chk.add("RT1", not malformed,
+            f"retry ledger well-formed ({len(retry_rows)} records)" if not malformed
+            else str(malformed[:5]))
+
+    # Every retry that made it into the corpus must (a) have a ledger record and
+    # (b) leave its failed original preserved.
+    by_retry_id = {r["retry_trial_id"]: r for r in retry_rows}
+    corpus_dirs = {r["trial_dir"] for r in rows}
+    silent = []
+    for rec in retry_rows:
+        if rec["retry_trial_id"] in corpus_dirs and rec["accepted_status"] == "accepted":
+            if rec["original_trial_id"] in corpus_dirs:
+                continue  # original preserved in the corpus alongside the retry
+            still_on_disk = any(
+                (lib.PROJECT_ROOT / d / rec["original_trial_id"]).exists()
+                for a in accepted
+                for d in (a.get("run_dirs") or [a["run_dir"]]))
+            if not still_on_disk:
+                silent.append(
+                    f"{rec['retry_trial_id']} accepted but original "
+                    f"{rec['original_trial_id']} no longer preserved")
+    # A trial that supersedes another WITHOUT any ledger record is the exact
+    # silent-replacement shape we refuse.
+    _cells = defaultdict(list)
+    for r in rows:
+        _cells[r["cell"]].append(r)
+    for cell_key, group in _cells.items():
+        seen_arm = {}
+        for r in group:
+            k = (r["base_task_id"], r["arm"])
+            if k in seen_arm and r["trial_dir"] not in by_retry_id:
+                silent.append(
+                    f"{cell_key} {k} served by {r['trial_dir']} with no retry lineage record")
+            seen_arm[k] = r["trial_dir"]
+
+    chk.add("RT2", not silent,
+            "no silent task_name replacement" if not silent else str(silent[:5]))
 
     return _finish(chk, paths, rows)
 

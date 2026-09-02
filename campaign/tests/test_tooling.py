@@ -30,6 +30,7 @@ import importlib
 import json
 import os
 import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -449,6 +450,47 @@ class CampaignToolingTest(unittest.TestCase):
             capture_output=True, text=True, cwd=str(PROJECT_ROOT))
         self.assertEqual(proc.returncode, 2)
         self.assertIn("does not match", proc.stderr)
+
+
+class TestOperatorInterface(unittest.TestCase):
+    """Section 8: the operator interface must be unchanged on the outside."""
+
+    SH = Path(__file__).resolve().parents[2] / "campaign.sh"
+
+    def test_campaign_sh_is_syntactically_valid(self):
+        rc = subprocess.run(["bash", "-n", str(self.SH)], capture_output=True, text=True)
+        self.assertEqual(rc.returncode, 0, rc.stderr)
+
+    def test_run_shard_and_run_mode_both_use_the_scheduler(self):
+        body = self.SH.read_text()
+        self.assertIn('run_profiles "$mode" "$shard"', body, "run-shard must use the scheduler")
+        self.assertIn('run_profiles "$mode" "$i"', body, "run-full/run-resource must use it too")
+        self.assertNotIn('run_one "$mode" "$p" "$i"', body,
+                         "run_mode still serializes profiles")
+
+    def test_operator_commands_are_still_accepted(self):
+        body = self.SH.read_text()
+        for cmd in ("prepare", "preflight", "run-full", "run-resource",
+                    "run-shard", "validate", "analyze"):
+            self.assertIn(cmd, body)
+        self.assertIn("./campaign.sh run-shard replication-20260902-v1 <full|resource> <1|2|3>",
+                      body.replace("$CAMPAIGN_ID_EXPECTED", "replication-20260902-v1"))
+
+    def test_legacy_sequential_path_is_still_reachable(self):
+        body = self.SH.read_text()
+        self.assertIn('CAMPAIGN_SCHEDULER:-adaptive', body)
+        self.assertIn('run_one "$mode" "$p" "$shard"', body,
+                      "legacy escape hatch must remain")
+
+    def test_run_shard_still_preflights_validates_and_records(self):
+        body = self.SH.read_text()
+        seg = body[body.index("run_shard() {"):]
+        seg = seg[:seg.index("\nrun_profiles()")] if "\nrun_profiles()" in seg else seg[:4000]
+        self.assertIn("do_preflight", seg)
+        self.assertIn("run_profiles", seg)
+        self.assertIn("validate_progress", seg)
+        self.assertIn("STOPPING as instructed", seg)
+        self.assertIn("campaign.provenance record", body)
 
 
 if __name__ == "__main__":

@@ -61,11 +61,21 @@ def _load_attempts(path: Path) -> list[dict]:
 def cmd_record(args) -> int:
     paths = _paths()
     paths["provenance"].mkdir(parents=True, exist_ok=True)
-    run_dir = Path(args.run_dir)
-    lib.assert_campaign_path(run_dir, "run directory")
+    # One attempt may span SEVERAL Harbor invocations: the adaptive controller
+    # splits a cell into batches so concurrency can be re-planned at batch
+    # boundaries. They are all part of ONE attempt for ONE cell -- this is not a
+    # merge across attempts and never a dedupe across task_name.
+    raw_dirs = args.run_dir if isinstance(args.run_dir, list) else [args.run_dir]
+    run_dirs = [Path(d) for d in raw_dirs if d]
+    for d in run_dirs:
+        lib.assert_campaign_path(d, "run directory")
+    run_dir = run_dirs[0]
 
     cell = lib.Cell(args.mode, args.profile, args.shard)
-    trials = lib.scan_run_dir(run_dir) if run_dir.is_dir() else []
+    trials = []
+    for d in run_dirs:
+        if d.is_dir():
+            trials.extend(lib.scan_run_dir(d))
     counts = {}
     for t in trials:
         counts[t.status] = counts.get(t.status, 0) + 1
@@ -75,7 +85,9 @@ def cmd_record(args) -> int:
     if status == "auto":
         status = "complete" if complete == cell.expected_trials and len(trials) == cell.expected_trials else "failed"
 
-    meta = lib.jload(run_dir / "run_metadata.json") or {}
+    meta = {}
+    for d in run_dirs:
+        meta = lib.jload(d / "run_metadata.json") or meta
     versions = sorted({t.agent_version for t in trials if t.agent_version})
     models = sorted({t.model_name for t in trials if t.model_name})
 
@@ -92,6 +104,7 @@ def cmd_record(args) -> int:
         "attempt_id": attempt_id,
         "run_id": run_dir.name,
         "run_dir": str(run_dir.resolve().relative_to(lib.PROJECT_ROOT)),
+        "run_dirs": [str(d.resolve().relative_to(lib.PROJECT_ROOT)) for d in run_dirs],
         "model_id": meta.get("model") or (models[0] if len(models) == 1 else models),
         "agent": meta.get("agent"),
         "agent_version_requested": meta.get("agent_version_requested"),
@@ -165,13 +178,19 @@ def cmd_build(args) -> int:
 
     rows, seen = [], {}
     for a in doc["accepted"]:
-        run_dir = lib.PROJECT_ROOT / a["run_dir"]
-        try:
-            lib.assert_campaign_path(run_dir, "accepted run directory")
-        except ValueError as exc:
-            errors.append(str(exc))
+        attempt_dirs = [lib.PROJECT_ROOT / d for d in (a.get("run_dirs") or [a["run_dir"]])]
+        bad = False
+        for d in attempt_dirs:
+            try:
+                lib.assert_campaign_path(d, "accepted run directory")
+            except ValueError as exc:
+                errors.append(str(exc)); bad = True
+        if bad:
             continue
-        for t in lib.scan_run_dir(run_dir):
+        scanned = []
+        for d in attempt_dirs:
+            scanned.extend(lib.scan_run_dir(d))
+        for t in scanned:
             key = (a["cell"], t.base_task_id, t.arm)
             if key in seen:
                 errors.append(
@@ -226,7 +245,7 @@ def main() -> None:
     r.add_argument("--mode", required=True, choices=lib.MODES)
     r.add_argument("--profile", required=True, choices=lib.PROFILES)
     r.add_argument("--shard", required=True, type=int, choices=lib.SHARD_INDICES)
-    r.add_argument("--run-dir", required=True)
+    r.add_argument("--run-dir", required=True, action="append")
     r.add_argument("--status", default="auto", choices=("auto",) + ALLOWED_STATUS)
     r.add_argument("--started-at")
     r.add_argument("--finished-at")
