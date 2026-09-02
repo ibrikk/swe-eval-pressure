@@ -7,7 +7,7 @@
 #   ./campaign.sh run-full     replication-20260902-v1
 #   ./campaign.sh run-resource replication-20260902-v1
 #   ./campaign.sh run-shard    replication-20260902-v1 <full|resource> <1|2|3>
-#   ./campaign.sh repair-shard replication-20260902-v1 <full|resource> <1|2|3>
+#   ./campaign.sh repair-shard replication-20260902-v1 <full|resource> <1|2|3> [--dry-run]
 #   ./campaign.sh validate     replication-20260902-v1
 #   ./campaign.sh analyze      replication-20260902-v1
 #
@@ -33,7 +33,22 @@
 #   version pins and the same attempt ledger. Every COMPLETE_VALID cell is
 #   frozen and is neither re-run nor re-purchased. It exists so an operator
 #   never has to call campaign.controller by hand, which would skip preflight,
-#   the budget probe and the ledger entirely.
+#   the budget probe and the ledger entirely. --dry-run runs every gate up to
+#   and including preflight and then stops, so the whole sequence can be proven
+#   without launching Harbor or spending a token.
+#
+# TASK DEFINITIONS ARE FROZEN, AND AMENDED ONLY EXPLICITLY
+#   `prepare` freezes every task definition's hashes in the per-cell manifest,
+#   and preflight re-verifies them before every launch. A definition on disk
+#   must equal EITHER what prepare froze OR the exact definition named by an
+#   approved, append-only record in provenance/task_definition_amendments.jsonl
+#   -- nothing else. A correction that lands after the freeze (as the 2026-09-02
+#   source-target repair did) is recorded with
+#       campaign.source_targets amend-campaign-manifests --apply
+#   which refuses any cell holding a COMPLETE_VALID trajectory and any drift
+#   that no source-target repair record accounts for. `prepare --force` and
+#   hand-edited hashes are not alternatives to this: they destroy the record of
+#   what the failed attempt actually ran.
 #
 #   ANY failed preflight or validation STOPS the campaign immediately. There is
 #   no resume-past-failure, no partial-shard acceptance, and no backfilling. A
@@ -375,6 +390,33 @@ repair_shard() {  # mode shard_index -- ONLY the outstanding cells, then stop
        Run: $PY -m campaign.source_targets audit --mode $mode --shard $shard"
   }
 
+  # (2b) Task definitions may differ from what `prepare` froze ONLY by an
+  # explicitly approved, append-only amendment. This reports the state before
+  # preflight enforces it, so an operator sees WHY preflight is about to refuse
+  # rather than just that it did. It never writes anything.
+  info "checking for unapproved task-definition drift"
+  "$PY" - "$mode" "$shard" <<'PY' || { audit "repair_drift_check_failed" "mode=$1" "shard=$2"; die "unapproved task-definition drift - nothing was launched.
+       Approved corrections are recorded with:
+         $PY -m campaign.source_targets amend-campaign-manifests --mode <mode> --shard <n> --apply
+       Drift with no approved basis is a question for a human, not a flag."; }
+import sys
+from campaign import amendments
+
+mode, shard = sys.argv[1], int(sys.argv[2])
+res = amendments.plan(mode, shard)
+pending = len(res["approved"])
+print(f"  task definitions checked              : {res['checked_task_definitions']}")
+print(f"  approved amendments already recorded  : {len(res['already_amended'])}")
+print(f"  approved amendments not yet recorded  : {pending}")
+print(f"  unapproved task drift                 : {len(res['refused'])}")
+for r in res["refused"][:10]:
+    print(f"    ! {r.get('cell')}/{r.get('task_dir')}: {r['refusal']}")
+if pending:
+    print("  NOTE: these corrections are approvable but not yet recorded; preflight")
+    print("        will refuse until they are amended explicitly.")
+sys.exit(1 if res["refused"] else 0)
+PY
+
   # (4) Fresh cell-level audit -> frozen repair plan. This also fails closed on
   # duplicate valid trajectories, which are a provenance question for a human.
   info "auditing cells and writing the repair plan"
@@ -406,13 +448,23 @@ if not planned:
     print("Nothing to repair: every cell is COMPLETE_VALID or PROVIDER_BLOCKED.")
     sys.exit(3)
 
+# PROVIDER_BLOCKED is an ACCEPTED end-to-end stack outcome: the request reached
+# the provider and the provider refused it. It counts in accepted_observations
+# and is never a repair target. It is not a model observation, so it is gated
+# out of model-behaviour analyses -- excluded from those, not "not data".
 blocked = [k for k, r in res["records"].items() if r.status == cells.PROVIDER_BLOCKED]
-print(f"  frozen (COMPLETE_VALID, never re-run) : {len(frozen)}")
-print(f"  provider-blocked (excluded, not data) : {len(blocked)}")
-print(f"  to repair                             : {len(planned)}")
-for p, v in sorted(plan["by_profile"].items()):
-    if v:
-        print(f"      {p:<8} {len(v)}")
+v = cells.validate_shard_complete(res)
+print(f"  expected cells                              : {res['expected']}")
+print(f"  accepted observations                       : {v['accepted_observations']}")
+print(f"    model observations                        : {v['model_observations']}")
+print(f"    provider-blocked (accepted stack outcomes; never rerun) : {len(blocked)}")
+print(f"  frozen (COMPLETE_VALID, never re-run)       : {len(frozen)}")
+print(f"  frozen cells intersecting the plan          : {len(overlap)}")
+print(f"  repair required                             : {res['repair_required']}")
+print(f"  to repair (this plan)                       : {len(planned)}")
+for p, val in sorted(plan["by_profile"].items()):
+    if val:
+        print(f"      {p:<8} {len(val)}")
 PY
 
   # (3) Budget, from the gateway, right now. Non-billable: an empty message
@@ -430,6 +482,17 @@ PY
   # (1) The normal campaign preflight. Same gate as run-shard: version pins,
   # dataset integrity, credentials, budget headroom for the remaining work.
   do_preflight "$mode shard $shard (repair)"
+
+  # Offline gates only. Everything above this line is read-only or provenance;
+  # everything below launches Harbor and spends budget. --dry-run stops exactly
+  # here, so the full gate sequence can be proven without a single model call.
+  if [[ "$SHARD_DRY_RUN" -eq 1 ]]; then
+    audit "repair_dry_run" "mode=$mode" "shard=$shard" "plan=$plan_file"
+    say "--dry-run: all gates PASSED - nothing was launched"
+    info "Harbor was NOT invoked. No trial, no token, no cost."
+    info "To execute: ./campaign.sh repair-shard $CAMPAIGN_ID $mode $shard"
+    return 0
+  fi
 
   # (6) Execute ONLY the planned cells.
   audit "repair_start" "mode=$mode" "shard=$shard" "plan=$plan_file"
@@ -468,7 +531,7 @@ v = cells.validate_shard_complete(res)
 print(f"  accepted observations  {v['accepted_observations']} / {v['expected']}")
 print(f"    model observations   {v['model_observations']}")
 print(f"    provider blocked     {v['provider_blocked']}"
-      "   (stack outcome; NOT a model-generated refusal)")
+      "   (accepted stack outcome; never rerun; NOT a model observation)")
 print(f"  missing                {v['missing']}")
 print(f"  outstanding            {v['outstanding_total']}")
 for p in v["problems"]:
@@ -518,13 +581,13 @@ shift 2 || true
 
 # run-shard takes two extra positionals: <mode> <shard>. Every other command's
 # argument handling is untouched.
-SHARD_MODE=""; SHARD_INDEX=""; SHARD_NEW_ATTEMPT=0
+SHARD_MODE=""; SHARD_INDEX=""; SHARD_NEW_ATTEMPT=0; SHARD_DRY_RUN=0
 if [[ "$CMD" == "run-shard" || "$CMD" == "repair-shard" ]]; then
   SHARD_MODE="${1:-}"; SHARD_INDEX="${2:-}"
   if [[ -z "$SHARD_MODE" || -z "$SHARD_INDEX" ]]; then
     case "$CMD" in
       run-shard)    echo "usage: ./campaign.sh run-shard $CAMPAIGN_ID_EXPECTED <full|resource> <1|2|3> [--new-attempt]" >&2 ;;
-      repair-shard) echo "usage: ./campaign.sh repair-shard $CAMPAIGN_ID_EXPECTED <full|resource> <1|2|3>" >&2 ;;
+      repair-shard) echo "usage: ./campaign.sh repair-shard $CAMPAIGN_ID_EXPECTED <full|resource> <1|2|3> [--dry-run]" >&2 ;;
     esac
     exit 2
   fi
@@ -533,6 +596,7 @@ if [[ "$CMD" == "run-shard" || "$CMD" == "repair-shard" ]]; then
   for a in "$@"; do
     case "$a" in
       --new-attempt) SHARD_NEW_ATTEMPT=1 ;;
+      --dry-run) SHARD_DRY_RUN=1 ;;
       *) _rest+=("$a") ;;
     esac
   done
@@ -540,6 +604,9 @@ if [[ "$CMD" == "run-shard" || "$CMD" == "repair-shard" ]]; then
 fi
 
 EXTRA_ARGS=("$@")
+# Deliberately unscoped: a shard's preflight hashes ALL 24 cells, not just the
+# one about to launch. Integrity drift anywhere in the campaign is a reason to
+# stop, and check_budget is a whole-campaign question regardless.
 PREFLIGHT_ARGS=("$@")
 
 case "$CMD" in

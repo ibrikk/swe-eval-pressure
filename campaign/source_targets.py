@@ -402,7 +402,8 @@ def write_repair_record(result: dict, *, paths=None) -> Path:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("command", choices=("audit", "repair", "restore-run-inputs", "sync-manifests"))
+    ap.add_argument("command", choices=("audit", "repair", "restore-run-inputs",
+                                       "sync-manifests", "amend-campaign-manifests"))
     ap.add_argument("--mode")
     ap.add_argument("--shard", type=int)
     ap.add_argument("--apply", action="store_true",
@@ -415,6 +416,26 @@ def main() -> None:
              else audit_shard(args.mode, args.shard, paths=paths))
         print(json.dumps(r, indent=2))
         sys.exit(0 if r["ok"] else 1)
+
+    if args.command == "amend-campaign-manifests":
+        # A source-target repair that lands after `prepare` has frozen the cell
+        # manifests leaves those manifests describing bytes that no longer exist,
+        # and preflight rightly refuses to launch. The fix is neither
+        # `prepare --force` nor a hand-edited hash: it is an explicit, approved,
+        # append-only amendment. `campaign.amendments` owns the preconditions and
+        # the provenance; this is the operator entry point for it.
+        from campaign import amendments
+        result = amendments.plan(args.mode, args.shard, paths=paths)
+        if not args.apply:
+            print(amendments.render(result))
+            print("\n(dry run - pass --apply to write the amendments)")
+            sys.exit(0 if result["ok"] else 1)
+        out = amendments.apply(result, paths=paths, apply=True)
+        problems = amendments.verify(paths=paths)
+        out["verified"] = not problems
+        out["problems"] = problems
+        print(json.dumps(out, indent=2))
+        sys.exit(0 if not problems else 1)
 
     if args.command == "sync-manifests":
         r = sync_manifests(paths=paths, apply=args.apply)

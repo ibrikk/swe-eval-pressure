@@ -4,11 +4,21 @@
 Checks, in order, and exits non-zero on the first failure:
 
   1. namespace     - campaign dirs + manifests exist and are for THIS campaign id
-  2. integrity     - every task dir hash in the cell manifest still matches disk
-  3. versions      - all four stacks explicitly pinned and present in the env
-  4. models        - the pinned model id is exposed by the gateway
-  5. budget        - remaining budget covers the REST OF THE WHOLE CAMPAIGN,
+  2. amendments    - any cell manifest that deviates from what `prepare` froze is
+                     exactly the archived original plus its approved, append-only
+                     task-definition amendments
+  3. integrity     - every task dir hash in the cell manifest still matches disk
+  4. versions      - all four stacks explicitly pinned and present in the env
+  5. models        - the pinned model id is exposed by the gateway
+  6. budget        - remaining budget covers the REST OF THE WHOLE CAMPAIGN,
                      not just the next shard
+
+Checks 2 and 3 together are the integrity rule, and it is not weakened by the
+existence of amendments. A task definition on disk must equal EITHER the
+originally frozen definition OR the exact definition named by an approved
+amendment record. Check 3 pins disk to the manifest; check 2 pins the manifest
+to `prepare`'s output plus explicit provenance. Arbitrary drift fails check 3,
+and a manifest quietly re-frozen to bless that drift fails check 2.
 
 Rule 5 is the one that matters. The Aug 2026 study died because shard 2 was
 launched with enough budget to start and not enough to finish, producing 251
@@ -51,6 +61,36 @@ def check_namespace(paths) -> list[str]:
     return notes
 
 
+def check_amendments(paths, cells: list[lib.Cell]) -> list[str]:
+    """Every deviation from the frozen manifests must be explicitly approved.
+
+    `check_integrity` compares disk against the cell manifest, so the manifest
+    itself has to be trustworthy. This proves it is: for each selected cell the
+    current manifest must be reconstructible from the archived original plus the
+    append-only amendment ledger. A manifest with amendments the ledger does not
+    record, a ledger record the manifest does not declare, a missing archive, an
+    amendment whose "original" hashes do not match what `prepare` actually froze,
+    or an amendment against a cell holding a COMPLETE_VALID trajectory all fail
+    here -- which is what stops "amend the manifest" from becoming a way to
+    launder arbitrary drift past check 3.
+    """
+    from campaign import amendments as amd
+    problems = amd.verify(cells, paths=paths)
+    if problems:
+        raise Fail("unapproved task-definition amendment(s):\n  " +
+                   "\n  ".join(problems) +
+                   "\n\n  A cell manifest may differ from what `prepare` froze ONLY by an\n"
+                   "  approved record in provenance/" + amd.LEDGER_NAME + ".")
+    ledger = amd.load_ledger(paths)
+    by_cell = amd.ledger_by_cell(paths, ledger)
+    n = sum(len(by_cell.get(c.key, [])) for c in cells)
+    if not n:
+        return ["amendments OK: no cell manifest deviates from prepare"]
+    return [f"amendments OK: {n} approved task-definition amendment(s) across "
+            f"{sum(1 for c in cells if by_cell.get(c.key))} cell(s), each matching "
+            f"its archived original and ledger record"]
+
+
 def check_integrity(paths, cells: list[lib.Cell], quick: bool) -> list[str]:
     notes = []
     for cell in cells:
@@ -68,7 +108,17 @@ def check_integrity(paths, cells: list[lib.Cell], quick: bool) -> list[str]:
             raise Fail(f"{cell.key}: dataset manifest changed since prepare\n"
                        f"  expected {cm['dataset_manifest_sha256']}\n  found    {got}")
         rows = cm["trials"]
-        subset = rows if not quick else rows[:: max(1, len(rows) // 10)]
+        if quick:
+            # Sample, but never let the sample skip an amended definition: those
+            # are the rows whose hashes were changed by hand-approved provenance
+            # and so the rows most worth re-proving against disk.
+            amended = {r["task_dir"] for r in cm.get("task_definition_amendments") or []}
+            sample = rows[:: max(1, len(rows) // 10)]
+            seen = {id(r) for r in sample}
+            subset = sample + [r for r in rows
+                               if r["task_dir"] in amended and id(r) not in seen]
+        else:
+            subset = rows
         for r in subset:
             td = lib.PROJECT_ROOT / r["snapshot_task_path"]
             if not td.is_dir():
@@ -205,6 +255,7 @@ def main() -> None:
     notes, failures = [], []
     try:
         notes += check_namespace(paths)
+        notes += check_amendments(paths, cells)
         notes += check_integrity(paths, cells, args.quick)
         notes += check_versions(profiles)
         if not args.skip_budget:

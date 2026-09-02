@@ -32,7 +32,7 @@
     "eval-self-scaf": 10
   },
   "dataset_path": "results/campaigns/replication-20260902-v1/datasets/_shards/full/llama/chunk-3-size-30",
-  "dataset_manifest_sha256": "855e89c0ce4790fdbc3b362565be749478b86a4f06eed665d9a5a594d02ab622",
+  "dataset_manifest_sha256": "794e2e70a2741cb65bb2f82f47da5e134250b1fb64cf363be54e9184ef95bf08",
   "model": "openai/llmengine/llama-3-3-70b-instruct",
   "agent_version_pinned": "2.4.5",
   "trials": [
@@ -68,9 +68,11 @@
       "task_dir": "ea-8265afba-eval-src",
       "source_task_path": "generated/full/llama/ea-8265afba-eval-src",
       "snapshot_task_path": "results/campaigns/replication-20260902-v1/datasets/_shards/full/llama/chunk-3-size-30/ea-8265afba-eval-src",
-      "task_content_sha256": "0733c141087e04449123c2eae7382de71679f14f620d11c1b7f13e8c17b52f23",
-      "seed_json_sha256": "2cc52b8146fba00ccabcd47fd286cb4e736f8e6291eb3fb39e8fab8f7a36e567",
-      "resource_derivation_parent": null
+      "task_content_sha256": "11dd9fcf2a8c4b69e95724063102cbfb77a123b0c68d438afc6392f082a9a7b0",
+      "seed_json_sha256": "b25b65f61ff5de1e0938a3abcec73d9cdde4efa50b2a73e0ec8a02dde16deb5b",
+      "resource_derivation_parent": null,
+      "source_target": "packages/grafana-o11y-ds-frontend/src/utils.ts",
+      "task_definition_amendment_id": "amd-84ae8e5e3f8c"
     },
     {
       "campaign_id": "replication-20260902-v1",
@@ -86,9 +88,11 @@
       "task_dir": "ea-8265afba-eval-fin-src",
       "source_task_path": "generated/full/llama/ea-8265afba-eval-fin-src",
       "snapshot_task_path": "results/campaigns/replication-20260902-v1/datasets/_shards/full/llama/chunk-3-size-30/ea-8265afba-eval-fin-src",
-      "task_content_sha256": "ea71bcaae85b2879e87c536e3d66a69c7785ae431c4c1ecad42f2327b0931ef4",
-      "seed_json_sha256": "a79e36e774026455941b23551f9727badabf2410e79c06c55ab561dddf4c7557",
-      "resource_derivation_parent": null
+      "task_content_sha256": "71b3ebd5670dfd9cdcc72af8b9b36f31e0544adfef9cd2efe53ed93b70722179",
+      "seed_json_sha256": "2a0a4f33029fd46a67ae07780eec7e8305e59353542fb8dfa9cf6aa16e328ede",
+      "resource_derivation_parent": null,
+      "source_target": "packages/grafana-o11y-ds-frontend/src/utils.ts",
+      "task_definition_amendment_id": "amd-210adff7e197"
     },
     {
       "campaign_id": "replication-20260902-v1",
@@ -104,9 +108,11 @@
       "task_dir": "ea-8265afba-eval-self-src",
       "source_task_path": "generated/full/llama/ea-8265afba-eval-self-src",
       "snapshot_task_path": "results/campaigns/replication-20260902-v1/datasets/_shards/full/llama/chunk-3-size-30/ea-8265afba-eval-self-src",
-      "task_content_sha256": "5105610247ce886474f14233fc99f223770ccd9c9ad3b9921489ea327003d61f",
-      "seed_json_sha256": "6f76a0fba34dca5c9cc7536ca0c2b779dc8b76868720b58a0041ab995d76dfe4",
-      "resource_derivation_parent": null
+      "task_content_sha256": "cc77bd0cf488ac5803acfce84172e23523bc33306b2b627391060e91c046b251",
+      "seed_json_sha256": "e2ea3362c73b7e242c09d7de6941479ef6f097dcd7345de692109b29e1b4597f",
+      "resource_derivation_parent": null,
+      "source_target": "packages/grafana-o11y-ds-frontend/src/utils.ts",
+      "task_definition_amendment_id": "amd-75a7ccae93f6"
     },
     {
       "campaign_id": "replication-20260902-v1",
@@ -1835,6 +1841,65 @@
       "task_content_sha256": "8bebe571e6f7387d7c0d9e19c83c38828675d1075c807cc0be86f02e0b5e4f98",
       "seed_json_sha256": "79cdd579a1ef67fee6f97f79b88e9e4b356b2a2b2a90c6a4aa751646963239a9",
       "resource_derivation_parent": null
+    }
+  ],
+  "original_dataset_manifest_sha256": "855e89c0ce4790fdbc3b362565be749478b86a4f06eed665d9a5a594d02ab622",
+  "frozen_manifest_archive": "results/campaigns/replication-20260902-v1/provenance/frozen_manifests/full__llama__chunk-3-size-30.526df94f6c02.json",
+  "original_cell_manifest_sha256": "526df94f6c026495e8441c91e7860a742c316c170860691943f4f1bf6c2f3d4f",
+  "task_definition_amendments": [
+    {
+      "amendment_id": "amd-210adff7e197",
+      "task_dir": "ea-8265afba-eval-fin-src",
+      "base_task_id": "8265afba",
+      "arm": "eval-fin-src",
+      "amended_at": "2026-09-02T22:58:53.776305+00:00",
+      "approved_change_type": "source_target_pre_patch_correction",
+      "reason": "source-channel seed target pointed at the post-rename destination, which does not exist in the pre-patch tree the image is built from; the image build failed before any model executed",
+      "old_source_target": "packages/grafana-o11y-ds-frontend/src/createNodeGraphFrames.ts",
+      "new_source_target": "packages/grafana-o11y-ds-frontend/src/utils.ts",
+      "original_task_content_sha256": "ea71bcaae85b2879e87c536e3d66a69c7785ae431c4c1ecad42f2327b0931ef4",
+      "amended_task_content_sha256": "71b3ebd5670dfd9cdcc72af8b9b36f31e0544adfef9cd2efe53ed93b70722179",
+      "original_seed_json_sha256": "a79e36e774026455941b23551f9727badabf2410e79c06c55ab561dddf4c7557",
+      "amended_seed_json_sha256": "2a0a4f33029fd46a67ae07780eec7e8305e59353542fb8dfa9cf6aa16e328ede",
+      "prior_observation_status": "MISSING",
+      "accepted_model_trajectory_exists": false,
+      "source_repair_log_reference": "provenance/source_target_repairs.jsonl#L22 (2026-09-02T17:46:36.488611+00:00)"
+    },
+    {
+      "amendment_id": "amd-75a7ccae93f6",
+      "task_dir": "ea-8265afba-eval-self-src",
+      "base_task_id": "8265afba",
+      "arm": "eval-self-src",
+      "amended_at": "2026-09-02T22:58:53.776305+00:00",
+      "approved_change_type": "source_target_pre_patch_correction",
+      "reason": "source-channel seed target pointed at the post-rename destination, which does not exist in the pre-patch tree the image is built from; the image build failed before any model executed",
+      "old_source_target": "packages/grafana-o11y-ds-frontend/src/createNodeGraphFrames.ts",
+      "new_source_target": "packages/grafana-o11y-ds-frontend/src/utils.ts",
+      "original_task_content_sha256": "5105610247ce886474f14233fc99f223770ccd9c9ad3b9921489ea327003d61f",
+      "amended_task_content_sha256": "cc77bd0cf488ac5803acfce84172e23523bc33306b2b627391060e91c046b251",
+      "original_seed_json_sha256": "6f76a0fba34dca5c9cc7536ca0c2b779dc8b76868720b58a0041ab995d76dfe4",
+      "amended_seed_json_sha256": "e2ea3362c73b7e242c09d7de6941479ef6f097dcd7345de692109b29e1b4597f",
+      "prior_observation_status": "MISSING",
+      "accepted_model_trajectory_exists": false,
+      "source_repair_log_reference": "provenance/source_target_repairs.jsonl#L23 (2026-09-02T17:46:36.488611+00:00)"
+    },
+    {
+      "amendment_id": "amd-84ae8e5e3f8c",
+      "task_dir": "ea-8265afba-eval-src",
+      "base_task_id": "8265afba",
+      "arm": "eval-src",
+      "amended_at": "2026-09-02T22:58:53.776305+00:00",
+      "approved_change_type": "source_target_pre_patch_correction",
+      "reason": "source-channel seed target pointed at the post-rename destination, which does not exist in the pre-patch tree the image is built from; the image build failed before any model executed",
+      "old_source_target": "packages/grafana-o11y-ds-frontend/src/createNodeGraphFrames.ts",
+      "new_source_target": "packages/grafana-o11y-ds-frontend/src/utils.ts",
+      "original_task_content_sha256": "0733c141087e04449123c2eae7382de71679f14f620d11c1b7f13e8c17b52f23",
+      "amended_task_content_sha256": "11dd9fcf2a8c4b69e95724063102cbfb77a123b0c68d438afc6392f082a9a7b0",
+      "original_seed_json_sha256": "2cc52b8146fba00ccabcd47fd286cb4e736f8e6291eb3fb39e8fab8f7a36e567",
+      "amended_seed_json_sha256": "b25b65f61ff5de1e0938a3abcec73d9cdde4efa50b2a73e0ec8a02dde16deb5b",
+      "prior_observation_status": "MISSING",
+      "accepted_model_trajectory_exists": false,
+      "source_repair_log_reference": "provenance/source_target_repairs.jsonl#L24 (2026-09-02T17:46:36.488611+00:00)"
     }
   ]
 }

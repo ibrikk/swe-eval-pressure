@@ -244,8 +244,14 @@
     {
       "cell": "full/claude/chunk-1-size-30",
       "expected_trials": 300,
-      "dataset_manifest_sha256": "32d9abf0568b91aaa9e2bfef160620996f7d69cfcf1b206a1e98801fc18c9029",
-      "manifest": "results/campaigns/replication-20260902-v1/manifests/cells/full__claude__chunk-1-size-30.json"
+      "dataset_manifest_sha256": "fb7cc3a08c2594447a583dcc555a2df8de78f8153a7eace627ec1e1a2f3646e4",
+      "manifest": "results/campaigns/replication-20260902-v1/manifests/cells/full__claude__chunk-1-size-30.json",
+      "original_dataset_manifest_sha256": "32d9abf0568b91aaa9e2bfef160620996f7d69cfcf1b206a1e98801fc18c9029",
+      "task_definition_amendment_ids": [
+        "amd-1e470303ace5",
+        "amd-10ea0b8b4825",
+        "amd-e8047c0e680e"
+      ]
     },
     {
       "cell": "full/claude/chunk-2-size-30",
@@ -256,14 +262,26 @@
     {
       "cell": "full/claude/chunk-3-size-30",
       "expected_trials": 100,
-      "dataset_manifest_sha256": "ef6a529fede18bdb270507d95028bc1fafdd218a6d69d2465dd588bd7ceb985e",
-      "manifest": "results/campaigns/replication-20260902-v1/manifests/cells/full__claude__chunk-3-size-30.json"
+      "dataset_manifest_sha256": "a827b38981f0aa7bce409e057cb388f93b610d0449533fe60abb5c13e019689f",
+      "manifest": "results/campaigns/replication-20260902-v1/manifests/cells/full__claude__chunk-3-size-30.json",
+      "original_dataset_manifest_sha256": "ef6a529fede18bdb270507d95028bc1fafdd218a6d69d2465dd588bd7ceb985e",
+      "task_definition_amendment_ids": [
+        "amd-737b3f92b79c",
+        "amd-2e01881441ee",
+        "amd-1eacd820c3b5"
+      ]
     },
     {
       "cell": "full/fable/chunk-1-size-30",
       "expected_trials": 300,
-      "dataset_manifest_sha256": "04e67b5321247278cf0cd7f653aea9608223e7b965705561cdc76216cd63927e",
-      "manifest": "results/campaigns/replication-20260902-v1/manifests/cells/full__fable__chunk-1-size-30.json"
+      "dataset_manifest_sha256": "c6b8a88558dc6551c1f4336280120e3c603bf4e91a12525d4e5168aeea577ba2",
+      "manifest": "results/campaigns/replication-20260902-v1/manifests/cells/full__fable__chunk-1-size-30.json",
+      "original_dataset_manifest_sha256": "04e67b5321247278cf0cd7f653aea9608223e7b965705561cdc76216cd63927e",
+      "task_definition_amendment_ids": [
+        "amd-9924bf408aad",
+        "amd-145abbbce249",
+        "amd-dea13b772821"
+      ]
     },
     {
       "cell": "full/fable/chunk-2-size-30",
@@ -274,14 +292,26 @@
     {
       "cell": "full/fable/chunk-3-size-30",
       "expected_trials": 100,
-      "dataset_manifest_sha256": "2baa53bb304837c84acb3e092a4f7fa83cf2f569bd92f2a5705927963ab80537",
-      "manifest": "results/campaigns/replication-20260902-v1/manifests/cells/full__fable__chunk-3-size-30.json"
+      "dataset_manifest_sha256": "927525d2a050cd9a6e3e7c469823e18eca611190e220d4fd789abab479022437",
+      "manifest": "results/campaigns/replication-20260902-v1/manifests/cells/full__fable__chunk-3-size-30.json",
+      "original_dataset_manifest_sha256": "2baa53bb304837c84acb3e092a4f7fa83cf2f569bd92f2a5705927963ab80537",
+      "task_definition_amendment_ids": [
+        "amd-3955a1bcd028",
+        "amd-9c232eb5cf0e",
+        "amd-f549b33345f9"
+      ]
     },
     {
       "cell": "full/codex/chunk-1-size-30",
       "expected_trials": 300,
-      "dataset_manifest_sha256": "59e479ed423605f6bdd74ae24292e1d2f137343810aa57bd2b9a4b7204e923f3",
-      "manifest": "results/campaigns/replication-20260902-v1/manifests/cells/full__codex__chunk-1-size-30.json"
+      "dataset_manifest_sha256": "2a552b31e9677b6967a0c69f4f839444c2b9c1369c13708e2f9effc44f3bcc2a",
+      "manifest": "results/campaigns/replication-20260902-v1/manifests/cells/full__codex__chunk-1-size-30.json",
+      "original_dataset_manifest_sha256": "59e479ed423605f6bdd74ae24292e1d2f137343810aa57bd2b9a4b7204e923f3",
+      "task_definition_amendment_ids": [
+        "amd-2e444b7b9ef5",
+        "amd-d449555ad033",
+        "amd-4e66c52ce8c3"
+      ]
     },
     {
       "cell": "full/codex/chunk-2-size-30",
@@ -292,14 +322,26 @@
     {
       "cell": "full/codex/chunk-3-size-30",
       "expected_trials": 100,
-      "dataset_manifest_sha256": "51a928715bc952311ae6ea52fdc901a138bb5be9ed614af22b676e7a0a0e09d4",
-      "manifest": "results/campaigns/replication-20260902-v1/manifests/cells/full__codex__chunk-3-size-30.json"
+      "dataset_manifest_sha256": "2576eef173ff751588ae3b6393bef9d5432d7b4e78a5e378feb2f965eed3ab18",
+      "manifest": "results/campaigns/replication-20260902-v1/manifests/cells/full__codex__chunk-3-size-30.json",
+      "original_dataset_manifest_sha256": "51a928715bc952311ae6ea52fdc901a138bb5be9ed614af22b676e7a0a0e09d4",
+      "task_definition_amendment_ids": [
+        "amd-b76d8bc5690c",
+        "amd-316956bcd9c6",
+        "amd-bcdc4d866262"
+      ]
     },
     {
       "cell": "full/llama/chunk-1-size-30",
       "expected_trials": 300,
-      "dataset_manifest_sha256": "c6bd2bbd6a47f47e8a809efbf05e53b3b5f15ed03ae80524a9db758745522b3c",
-      "manifest": "results/campaigns/replication-20260902-v1/manifests/cells/full__llama__chunk-1-size-30.json"
+      "dataset_manifest_sha256": "bdc45f286486693a4f429991e9a63467112f22be4a2fe5295f6e94d1d2649275",
+      "manifest": "results/campaigns/replication-20260902-v1/manifests/cells/full__llama__chunk-1-size-30.json",
+      "original_dataset_manifest_sha256": "c6bd2bbd6a47f47e8a809efbf05e53b3b5f15ed03ae80524a9db758745522b3c",
+      "task_definition_amendment_ids": [
+        "amd-b53ee2ef3b00",
+        "amd-c88b1a29a71f",
+        "amd-1dc1a1d5d81b"
+      ]
     },
     {
       "cell": "full/llama/chunk-2-size-30",
@@ -310,8 +352,14 @@
     {
       "cell": "full/llama/chunk-3-size-30",
       "expected_trials": 100,
-      "dataset_manifest_sha256": "855e89c0ce4790fdbc3b362565be749478b86a4f06eed665d9a5a594d02ab622",
-      "manifest": "results/campaigns/replication-20260902-v1/manifests/cells/full__llama__chunk-3-size-30.json"
+      "dataset_manifest_sha256": "794e2e70a2741cb65bb2f82f47da5e134250b1fb64cf363be54e9184ef95bf08",
+      "manifest": "results/campaigns/replication-20260902-v1/manifests/cells/full__llama__chunk-3-size-30.json",
+      "original_dataset_manifest_sha256": "855e89c0ce4790fdbc3b362565be749478b86a4f06eed665d9a5a594d02ab622",
+      "task_definition_amendment_ids": [
+        "amd-210adff7e197",
+        "amd-75a7ccae93f6",
+        "amd-84ae8e5e3f8c"
+      ]
     },
     {
       "cell": "resource/claude/chunk-1-size-30",
