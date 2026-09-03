@@ -135,10 +135,17 @@ do_prepare() {
   audit prepare_ok
 }
 
+# PREFLIGHT_BUDGET_SCOPE narrows the BUDGET GATE ONLY, and only for the two
+# commands that launch one shard and then stop. Empty for everything else, so a
+# standalone preflight and run-full / run-resource keep gating on the whole
+# remaining campaign exactly as before.
+PREFLIGHT_BUDGET_SCOPE=()
+
 do_preflight() {  # $1 optional context label
   local ctx="${1:-standalone}"
   say "preflight ($ctx)"
-  if ! "$PY" -m campaign.preflight ${PREFLIGHT_ARGS[@]+"${PREFLIGHT_ARGS[@]}"}; then
+  if ! "$PY" -m campaign.preflight ${PREFLIGHT_ARGS[@]+"${PREFLIGHT_ARGS[@]}"} \
+       ${PREFLIGHT_BUDGET_SCOPE[@]+"${PREFLIGHT_BUDGET_SCOPE[@]}"}; then
     audit "preflight_failed" "context=$ctx"
     die "preflight failed ($ctx) - campaign STOPPED. Nothing was launched."
   fi
@@ -259,7 +266,12 @@ run_shard() {  # mode shard_index  -- ONE slice, then stop
   fi
   audit "shard_start" "mode=$mode" "shard=$shard" "new_attempt=$SHARD_NEW_ATTEMPT"
 
-  # Identical contract to one iteration of run_mode's loop.
+  # Identical contract to one iteration of run_mode's loop, with ONE difference:
+  # this command launches exactly this shard and then stops, so the budget gate
+  # is scoped to this shard's genuinely outstanding inference work. Every
+  # structural check stays campaign-wide, both safety factors are unchanged, and
+  # the whole-campaign projection is still printed as a WARNING.
+  PREFLIGHT_BUDGET_SCOPE=(--budget-scope-mode "$mode" --budget-scope-shard "$shard")
   do_preflight "$mode shard $shard (single)"
   run_profiles "$mode" "$shard"
   validate_progress "$mode shard $shard (single)"
@@ -493,6 +505,13 @@ PY
 
   # (1) The normal campaign preflight. Same gate as run-shard: version pins,
   # dataset integrity, credentials, budget headroom for the remaining work.
+  #
+  # Scoped to this shard, which for a repair means exactly the cells in the plan
+  # written at step (4): campaign.cells.remaining_trials resolves a profile/shard
+  # through its repair plan, so a 24-cell repair is priced as 24 trials, not 300.
+  # Frozen COMPLETE_VALID cells are absent from the plan, so they are never
+  # re-purchased here any more than they are re-run.
+  PREFLIGHT_BUDGET_SCOPE=(--budget-scope-mode "$mode" --budget-scope-shard "$shard")
   do_preflight "$mode shard $shard (repair)"
 
   # Offline gates only. Everything above this line is read-only or provenance;
@@ -639,7 +658,9 @@ fi
 EXTRA_ARGS=("$@")
 # Deliberately unscoped: a shard's preflight hashes ALL 24 cells, not just the
 # one about to launch. Integrity drift anywhere in the campaign is a reason to
-# stop, and check_budget is a whole-campaign question regardless.
+# stop. The BUDGET is the one check a single-shard command scopes, and it does
+# that through PREFLIGHT_BUDGET_SCOPE above -- never through these args, which
+# would also narrow the integrity and amendment checks.
 PREFLIGHT_ARGS=("$@")
 
 case "$CMD" in

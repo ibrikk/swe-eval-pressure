@@ -10,8 +10,8 @@ Checks, in order, and exits non-zero on the first failure:
   3. integrity     - every task dir hash in the cell manifest still matches disk
   4. versions      - all four stacks explicitly pinned and present in the env
   5. models        - the pinned model id is exposed by the gateway
-  6. budget        - remaining budget covers the REST OF THE WHOLE CAMPAIGN,
-                     not just the next shard
+  6. budget        - remaining budget covers the work the CALLING COMMAND is
+                     about to launch, through to the end of that work
 
 Checks 2 and 3 together are the integrity rule, and it is not weakened by the
 existence of amendments. A task definition on disk must equal EITHER the
@@ -20,10 +20,33 @@ amendment record. Check 3 pins disk to the manifest; check 2 pins the manifest
 to `prepare`'s output plus explicit provenance. Arbitrary drift fails check 3,
 and a manifest quietly re-frozen to bless that drift fails check 2.
 
-Rule 5 is the one that matters. The Aug 2026 study died because shard 2 was
-launched with enough budget to start and not enough to finish, producing 251
-synthetic and hundreds of budget-censored trials that then had to be quarantined.
-This refuses to start a shard unless the campaign as a whole can still complete.
+Rule 6 is the one that matters. The Aug 2026 study died because shard 2 was
+launched with enough budget to start and not enough to FINISH, producing 251
+synthetic and hundreds of budget-censored trials that then had to be
+quarantined. The invariant that prevents a repeat is: never launch a unit of
+work the remaining budget cannot see through to the end.
+
+THE UNIT IS WHATEVER THE COMMAND ACTUALLY LAUNCHES
+--------------------------------------------------
+A standalone preflight, and `run-full` / `run-resource` -- which launch all
+three shards of a mode in one uninterruptible sweep -- are gated on the whole
+remaining campaign, unchanged.
+
+`run-shard` and `repair-shard` launch exactly one shard, or exactly one repair
+plan, and then STOP. Campaign V2 is cell-level resumable, so a shard whose own
+outstanding work is fully funded cannot produce a budget-censored trial however
+much the rest of the campaign costs: the money is either there for those cells
+or the gate refuses before Harbor is invoked. Charging those commands for work
+they will not launch does not buy that safety -- it only refuses work the
+budget genuinely covers, which is the same class of error as pricing a resumed
+shard at its full trial count. So they gate on their own scope, passed with
+--budget-scope-mode / --budget-scope-shard, and the whole-campaign projection
+is still computed and reported as a WARNING so the operator sees the cliff
+coming.
+
+The safety factors are identical in both cases and are not negotiable per
+scope: 20% planning contingency inside the planning cost, then a further 10%
+margin on top of it.
 """
 from __future__ import annotations
 
@@ -32,12 +55,35 @@ import json
 import os
 import subprocess
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 
 from campaign import cells, cost_model, lib
 
+# Contingency folded into the planning cost, on top of the expected per-trial
+# mean. Same factor `cost_model.planning_total_usd` uses for the whole campaign.
+PLANNING_CONTINGENCY = 0.20
 # Fraction of headroom demanded on top of the remaining planning cost.
 SAFETY_MARGIN = 0.10
+
+
+@dataclass(frozen=True)
+class BudgetScope:
+    """The unit of work a launch gate is about to start, and nothing else.
+
+    `None` for both fields is the whole remaining campaign. A scope narrows
+    WHICH cells are priced; it never changes HOW they are priced, and it never
+    touches the structural checks -- a scoped preflight still hashes every cell
+    manifest in the campaign, because integrity drift anywhere is a reason to
+    stop regardless of what is about to launch.
+    """
+    label: str
+    mode: str | None = None
+    shard: int | None = None
+
+    def selects(self, cell: lib.Cell) -> bool:
+        return ((self.mode is None or cell.mode == self.mode) and
+                (self.shard is None or cell.shard_index == self.shard))
 
 
 class Fail(Exception):
@@ -166,7 +212,8 @@ def check_models(profiles, key: str) -> list[str]:
     return notes
 
 
-def remaining_campaign_cost(paths, est: dict) -> tuple[float, list[str]]:
+def remaining_campaign_cost(paths, est: dict, scope: BudgetScope | None = None
+                            ) -> tuple[float, list[str], int]:
     """Planning cost of the EXPERIMENTAL CELLS that still require inference.
 
     This used to charge every not-yet-accepted profile/shard at its full trial
@@ -178,11 +225,20 @@ def remaining_campaign_cost(paths, est: dict) -> tuple[float, list[str]]:
 
     `campaign.cells.remaining_trials` resolves each profile/shard to the number
     of task/arm cells genuinely outstanding, from the written repair plan when
-    one exists.
+    one exists -- which is also what makes a `repair-shard` scope price exactly
+    the cells in that shard's repair plan and nothing else.
+
+    `scope` restricts WHICH profile/shard cells are counted. It does not change
+    the pricing: every counted trial still carries the same per-trial mean and
+    the same 20% contingency.
+
+    Returns (planning cost incl. contingency, pending cell descriptions, trials).
     """
     remaining = cells.remaining_trials(paths)
-    total, pending = 0.0, []
+    total, pending, trials = 0.0, [], 0
     for cell in lib.all_cells():
+        if scope is not None and not scope.selects(cell):
+            continue
         info = remaining.get(cell.key) or {"remaining_trials": cell.expected_trials,
                                            "basis": "not_started"}
         n = int(info["remaining_trials"])
@@ -190,16 +246,36 @@ def remaining_campaign_cost(paths, est: dict) -> tuple[float, list[str]]:
             continue
         c = est["cells"][f"{cell.mode}/{cell.profile}"]
         per_trial = c["mean_usd_per_trial"] or 0.0
-        total += per_trial * n * 1.20        # same contingency as planning
+        total += per_trial * n * (1 + PLANNING_CONTINGENCY)   # same contingency as planning
+        trials += n
         pending.append(f"{cell.key} ({n} trials, {info['basis']})")
-    return total, pending
+    return total, pending, trials
 
 
-def check_budget(paths, est: dict, key: str | None) -> list[str]:
+def check_budget(paths, est: dict, key: str | None,
+                 scope: BudgetScope | None = None) -> list[str]:
+    """Refuse to launch unless `scope`'s outstanding work is fully funded.
+
+    The whole-campaign projection is computed unconditionally. When the caller
+    scoped the gate, a whole-campaign shortfall is reported as a WARNING rather
+    than a refusal -- the operator is told the campaign does not fit end to end,
+    while the shard in front of them, which does fit and which the controller
+    can resume cell by cell, is allowed to proceed.
+    """
     status = lib.probe_budget(key)
     if not status.ok:
         raise Fail(f"budget probe failed: {status.error} (key {status.key_fingerprint})")
-    need, pending = remaining_campaign_cost(paths, est)
+
+    whole_need, whole_pending, whole_trials = remaining_campaign_cost(paths, est)
+    whole_required = whole_need * (1 + SAFETY_MARGIN)
+
+    if scope is None:
+        need, pending, trials = whole_need, whole_pending, whole_trials
+        label = "whole remaining campaign"
+    else:
+        need, pending, trials = remaining_campaign_cost(paths, est, scope=scope)
+        label = scope.label
+
     required = need * (1 + SAFETY_MARGIN)
     notes = [
         f"key             : {status.key_fingerprint}",
@@ -207,8 +283,9 @@ def check_budget(paths, est: dict, key: str | None) -> list[str]:
         f"spend           : ${status.spend:,.2f}",
         f"remaining       : ${status.remaining:,.2f}",
         f"tpm/rpm         : {status.tpm_limit}/{status.rpm_limit}",
-        f"cells pending   : {len(pending)}",
-        f"planning cost   : ${need:,.2f}  (remaining cells, incl. 20% contingency)",
+        f"gating on       : {label}",
+        f"cells pending   : {len(pending)}  ({trials:,} trials still requiring inference)",
+        f"planning cost   : ${need:,.2f}  (incl. {int(PLANNING_CONTINGENCY*100)}% contingency)",
         f"required        : ${required:,.2f}  (+{int(SAFETY_MARGIN*100)}% safety margin)",
     ]
     if status.remaining < required:
@@ -217,6 +294,22 @@ def check_budget(paths, est: dict, key: str | None) -> list[str]:
             f"\n  short by ${required - status.remaining:,.2f}.\n"
             "  Raise the key budget or reduce campaign scope; do NOT start a partial run."
         )
+
+    if scope is not None:
+        # Always shown, fit or not: a scoped gate must never let the operator
+        # lose sight of the number it did not gate on.
+        notes.append(
+            f"whole campaign  : ${whole_need:,.2f} planning / ${whole_required:,.2f} required "
+            f"({whole_trials:,} trials across {len(whole_pending)} cells)")
+        if status.remaining < whole_required:
+            notes.append(
+                f"WARNING: the WHOLE remaining campaign does NOT fit. It requires "
+                f"${whole_required:,.2f} against ${status.remaining:,.2f} remaining - short by "
+                f"${whole_required - status.remaining:,.2f}. This gate cleared {label} ONLY. "
+                "Later shards will be refused unless the key budget is raised or the "
+                "campaign scope is reduced. Re-run preflight between shards."
+            )
+
     p90 = est["p90_total_usd"]
     if status.remaining < p90:
         notes.append(
@@ -235,6 +328,14 @@ def main() -> None:
     ap.add_argument("--quick", action="store_true",
                     help="hash a 10%% sample of task dirs instead of all (per-shard use)")
     ap.add_argument("--skip-budget", action="store_true", help="offline structural checks only")
+    # Scope the BUDGET GATE ONLY -- never the structural checks above it. Set by
+    # run-shard / repair-shard, which launch one shard and stop; omitted by a
+    # standalone preflight and by run-full / run-resource, which stay gated on
+    # the whole remaining campaign.
+    ap.add_argument("--budget-scope-mode", choices=lib.MODES,
+                    help="gate the budget on this mode's outstanding work only")
+    ap.add_argument("--budget-scope-shard", type=int, choices=lib.SHARD_INDICES,
+                    help="gate the budget on this shard's outstanding work only")
     ap.add_argument("--json", action="store_true")
     args = ap.parse_args()
 
@@ -252,6 +353,19 @@ def main() -> None:
     profiles = sorted({c.profile for c in cells})
     key = os.environ.get("LITE_LLM_KEY") or os.environ.get("ANTHROPIC_API_KEY") or ""
 
+    scope = None
+    if args.budget_scope_mode or args.budget_scope_shard:
+        parts = []
+        if args.budget_scope_mode:
+            parts.append(args.budget_scope_mode.upper())
+        if args.budget_scope_shard:
+            parts.append(f"shard {args.budget_scope_shard}")
+        scope = BudgetScope(
+            label=" ".join(parts) + " outstanding inference work",
+            mode=args.budget_scope_mode,
+            shard=args.budget_scope_shard,
+        )
+
     notes, failures = [], []
     try:
         notes += check_namespace(paths)
@@ -261,12 +375,15 @@ def main() -> None:
         if not args.skip_budget:
             notes += check_models(profiles, key)
             est = cost_model.estimate()
-            notes += check_budget(paths, est, key)
+            notes += check_budget(paths, est, key, scope=scope)
     except Fail as exc:
         failures.append(str(exc))
 
     result = {"campaign_id": lib.CAMPAIGN_ID, "checked_at": lib.now_iso(),
-              "cells": [c.key for c in cells], "notes": notes,
+              "cells": [c.key for c in cells],
+              # What the budget gate was actually scoped to, on the record.
+              "budget_scope": scope.label if scope else "whole remaining campaign",
+              "notes": notes,
               "failures": failures, "ok": not failures}
     log = paths["logs"] / "preflight.jsonl"
     log.parent.mkdir(parents=True, exist_ok=True)
