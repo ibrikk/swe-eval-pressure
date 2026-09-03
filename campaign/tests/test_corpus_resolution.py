@@ -52,6 +52,12 @@ from campaign.tests.test_tooling import Fixture, _Args, _quiet  # noqa: E402
 MODE = "full"
 SHARD = 1
 
+
+def _attempts() -> list[dict]:
+    """The attempt ledger as recorded, in order."""
+    path = lib.campaign_paths()["provenance"] / "attempts.jsonl"
+    return [json.loads(l) for l in path.read_text().splitlines() if l.strip()]
+
 # 2026-09-02 FULL shard 1, per profile. valid + failed + blocked + missing = 300.
 SHAPE = {
     "claude": {"valid": 197, "failed": 3, "blocked": 0},
@@ -120,6 +126,12 @@ class ShardOne:
         self.origin: dict[str, Path] = {}
         self.repair: dict[str, Path] = {}
         self.failed: dict[str, list] = {}
+        #: (base_id, arm) -> "pre_model" | "partial", per profile. The two
+        #: failure classes score differently at TRIAL level -- a partial still
+        #: has a trajectory, so lib.scan_run_dir calls it complete while the
+        #: cell validator calls it PARTIAL_MODEL_FAILURE. Tests that assert on
+        #: trial-level counts need to know which is which.
+        self.failed_kind: dict[str, dict] = {}
         self.blocked: dict[str, list] = {}
         self.never_ran: dict[str, list] = {}
         self.plan_path = cells.repair_plan_path(MODE, SHARD)
@@ -155,12 +167,14 @@ class ShardOne:
                 _trial(parent, b, arm, profile, kind="valid", tag="orig")
                 i += 1
             self.failed[profile] = []
+            self.failed_kind[profile] = {}
             for n in range(shape["failed"]):
                 b, arm = order[i]
                 # Both failure classes the policy names, not just one.
-                _trial(parent, b, arm, profile,
-                       kind="pre_model" if n % 2 == 0 else "partial", tag="orig")
+                kind = "pre_model" if n % 2 == 0 else "partial"
+                _trial(parent, b, arm, profile, kind=kind, tag="orig")
                 self.failed[profile].append((b, arm))
+                self.failed_kind[profile][(b, arm)] = kind
                 i += 1
             self.blocked[profile] = []
             for _ in range(shape["blocked"]):
@@ -201,6 +215,18 @@ class ShardOne:
         for profile in lib.PROFILES:
             out[profile] = self.fx.record(provenance, MODE, profile, SHARD,
                                           self.origin[profile])
+        return out
+
+    def adopt_originals(self, provenance, *, apply=True, profiles=None,
+                        reason="controller crashed before attempt recording"):
+        """Recover the ledger entry for originals that were never recorded."""
+        out = {}
+        for profile in (profiles or lib.PROFILES):
+            ns = _Args(mode=MODE, profile=profile, shard=SHARD,
+                       run_dir=[str(self.origin[profile])], reason=reason,
+                       status="auto", started_at=None, finished_at=None,
+                       note="", apply=apply)
+            out[profile] = _quiet(provenance.cmd_adopt, ns)
         return out
 
     def record_repairs(self, provenance, *, failed_profiles=()):
@@ -247,6 +273,11 @@ class ShardOneCase(unittest.TestCase):
     EXTRA_REPAIR_TRIALS = ()
     FAILED_REPAIR_PROFILES = ()
 
+    #: how the original run enters the ledger. "record" is the normal path;
+    #: "adopt" is the recovery path for a controller that crashed before it
+    #: recorded itself; None leaves the run unattributed.
+    ORIGINAL_LINEAGE = "record"
+
     def setUp(self):
         self.tmpdir = tempfile.mkdtemp(prefix="campv2-resolution-")
         self.addCleanup(shutil.rmtree, self.tmpdir, ignore_errors=True)
@@ -255,7 +286,10 @@ class ShardOneCase(unittest.TestCase):
         from campaign import provenance
         self.provenance = provenance
         self.s1.build_original_runs()
-        self.s1.record_originals(provenance)
+        if self.ORIGINAL_LINEAGE == "record":
+            self.s1.record_originals(provenance)
+        elif self.ORIGINAL_LINEAGE == "adopt":
+            self.s1.adopt_originals(provenance)
         self.plan = self.s1.write_repair_plan(drop_cells=self.DROP_FROM_PLAN)
         self.s1.build_repair_runs(self.plan, skip_cells=self.SKIP_CELLS,
                                   extra=self.EXTRA_REPAIR_TRIALS)
@@ -283,9 +317,7 @@ class TestFixtureShape(ShardOneCase):
 
     def test_00b_originals_are_failed_attempts_repairs_are_complete(self):
         """The repair stands in for a run that never closed. That is the premise."""
-        att = [json.loads(l) for l in
-               (lib.campaign_paths()["provenance"] / "attempts.jsonl").read_text().splitlines()
-               if l.strip()]
+        att = _attempts()
         originals = [a for a in att if a["attempt_kind"] == "full_cell"]
         repairs = [a for a in att if a["attempt_kind"] == "repair"]
         self.assertEqual(len(originals), 4)
@@ -576,3 +608,134 @@ class TestModelPinMismatch(ShardOneCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+# --------------------------------------------------------------------------- #
+# recovery: the original run crashed before it recorded itself
+# --------------------------------------------------------------------------- #
+class TestUnrecordedOriginal(ShardOneCase):
+    """The real FULL shard-1 shape: 986 valid cells that no attempt names."""
+
+    ORIGINAL_LINEAGE = None
+
+    def test_15_an_unattributed_run_is_an_error_not_a_row(self):
+        rc = self.build()
+        rep = self.s1.report()
+        self.assertEqual(rc, 1)
+        self.assertEqual(self.s1.corpus(), [],
+                         "a trial named by no attempt has no lineage and may "
+                         "not be admitted, however valid it looks on disk")
+        self.assertTrue(any("named by no attempt in the ledger" in e
+                            for e in rep["errors"]), rep["errors"][:3])
+        # Only the repaired cells have lineage, so only they resolve.
+        self.assertEqual(rep["unique_cells"], REPAIRED)
+        self.assertEqual(rep["missing"], TOTAL_CELLS - REPAIRED)
+
+    def test_16_adopting_the_run_recovers_the_whole_corpus(self):
+        self.assertEqual(self.build(), 1)
+        self.s1.adopt_originals(self.provenance)
+        self.assertEqual(self.build(), 0, self.s1.report()["errors"][:3])
+        rep = self.s1.report()
+        self.assertEqual(rep["rows"], TOTAL_CELLS)
+        self.assertEqual(rep["unique_cells"], TOTAL_CELLS)
+        self.assertEqual(rep["missing"], 0)
+        self.assertEqual(rep["duplicates"], 0)
+        self.assertEqual(rep["repair_sourced_rows"], REPAIRED)
+        self.assertEqual(rep["repair_resolved_cells"], FAILED_ORIGINALS)
+        self.assertEqual(rep["provider_blocked_rows"], PROVIDER_BLOCKED)
+
+    def test_17_recovery_records_what_it_is_and_manufactures_nothing(self):
+        self.s1.adopt_originals(self.provenance)
+        att = {a["attempt_id"]: a for a in _attempts()
+               if a["attempt_kind"] == "original_recovered"}
+        self.assertEqual(len(att), len(lib.PROFILES))
+        for a in att.values():
+            self.assertTrue(a["recovered_provenance"])
+            self.assertFalse(a["new_execution"])
+            self.assertEqual(a["recovery_reason"],
+                             "controller crashed before attempt recording")
+            self.assertIsNone(a["superseded_by"])
+            # The run really did not close its cell, and recovery says so.
+            self.assertEqual(a["status"], "failed")
+            self.assertLess(a["accepted_observations"], a["expected_trials"])
+            sh, kinds = SHAPE[a["profile"]], self.s1.failed_kind[a["profile"]]
+            # Trial-level counts, exactly as scan_run_dir found them. A partial
+            # failure still carries a trajectory, so it scores complete here and
+            # is only caught one level up by the cell validator -- recovery
+            # records what the scanner saw, and corrects nothing.
+            pre = sum(1 for k in kinds.values() if k == "pre_model")
+            self.assertEqual(a["status_counts"].get(lib.STATUS_ERROR, 0), pre)
+            self.assertEqual(a["provider_blocked"], sh["blocked"])
+            self.assertEqual(a["observed_trials"],
+                             sh["valid"] + sh["failed"] + sh["blocked"])
+            self.assertEqual(a["accepted_observations"],
+                             a["observed_trials"] - pre)
+
+    def test_18_recovery_never_supersedes_or_rewrites_history(self):
+        before = (lib.campaign_paths()["provenance"] / "attempts.jsonl").read_text()
+        self.s1.adopt_originals(self.provenance)
+        after = (lib.campaign_paths()["provenance"] / "attempts.jsonl").read_text()
+        self.assertTrue(after.startswith(before),
+                        "adopt appends; it never rewrites a recorded attempt")
+        self.assertEqual(len(after.strip().splitlines()),
+                         len(before.strip().splitlines()) + len(lib.PROFILES))
+
+    def test_19_adopting_a_run_that_is_already_named_is_refused(self):
+        self.s1.adopt_originals(self.provenance)
+        before = (lib.campaign_paths()["provenance"] / "attempts.jsonl").read_text()
+        rcs = self.s1.adopt_originals(self.provenance)
+        self.assertTrue(all(rc == 1 for rc in rcs.values()),
+                        "a second adoption is a duplicate record, not a recovery")
+        self.assertEqual(
+            (lib.campaign_paths()["provenance"] / "attempts.jsonl").read_text(),
+            before, "a refused adoption writes nothing at all")
+
+    def test_20_recovery_may_not_admit_a_run_that_fails_a_pin(self):
+        profile = "llama"
+        rd = self.s1.origin[profile]
+        td = next((rd / rd.name).glob("ea-*/agent/trajectory.json"))
+        traj = json.loads(td.read_text())
+        traj["agent"]["model_name"] = Fixture.MODEL_WIRE["codex"]
+        td.write_text(json.dumps(traj))
+        rcs = self.s1.adopt_originals(self.provenance, profiles=[profile])
+        self.assertEqual(rcs[profile], 1,
+                         "recovery restores lineage; it does not relax a check")
+        self.assertEqual(
+            [a for a in _attempts() if a["attempt_kind"] == "original_recovered"], [])
+
+    def test_21_a_dry_run_writes_nothing(self):
+        before = (lib.campaign_paths()["provenance"] / "attempts.jsonl").read_text()
+        rcs = self.s1.adopt_originals(self.provenance, apply=False)
+        self.assertTrue(all(rc == 0 for rc in rcs.values()))
+        self.assertEqual(
+            (lib.campaign_paths()["provenance"] / "attempts.jsonl").read_text(),
+            before)
+
+
+class TestRecoveredOriginalBehavesLikeAnOriginal(ShardOneCase):
+    """A recovered attempt is ordinary provenance, not a second class of row."""
+
+    ORIGINAL_LINEAGE = "adopt"
+
+    def test_22_the_corpus_is_identical_to_the_recorded_path(self):
+        self.assertEqual(self.build(), 0, self.s1.report()["errors"][:3])
+        rows = self.s1.corpus()
+        self.assertEqual(len(rows), TOTAL_CELLS)
+        self.assertEqual(len({r["cell_key"] for r in rows}), TOTAL_CELLS)
+        by_source = {}
+        for r in rows:
+            by_source[r["resolution"]] = by_source.get(r["resolution"], 0) + 1
+        self.assertEqual(by_source["original"], VALID_ORIGINALS)
+        self.assertEqual(by_source["repair"], REPAIRED)
+        self.assertEqual(by_source["provider_blocked"], PROVIDER_BLOCKED)
+
+    def test_23_the_14_failed_originals_are_still_superseded_and_preserved(self):
+        self.assertEqual(self.build(), 0)
+        sup = [r for r in self.s1.resolutions() if r["superseded_observations"]]
+        self.assertEqual(len(sup), FAILED_ORIGINALS)
+        for r in sup:
+            o = r["superseded_observations"][0]
+            self.assertIn(o["status"],
+                          ("PRE_MODEL_FAILURE", "PARTIAL_MODEL_FAILURE"))
+            self.assertTrue(Path(o["preserved_at"]).is_dir())
+

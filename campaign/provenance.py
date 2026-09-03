@@ -27,6 +27,18 @@ THE FIX, STRUCTURALLY
                        repair plan listed (`repair`). Judging a repair against
                        the whole cell is what made a 103/103 repair record as
                        `failed`; see `repair_scope`.
+7. RESOLUTION IS BY LINEAGE. Where a cell has two observations, the corpus row
+                       is chosen from the recorded attempts that produced them
+                       and from the cell-level validator - never by task name,
+                       timestamp, run order or reward. Two equally valid
+                       observations are a hard error until a human records which
+                       one is authoritative; see `resolve_cell`.
+8. RECOVERY IS EXPLICIT. A run whose controller crashed before recording itself
+                       is adopted through `adopt`, which writes an
+                       `original_recovered` attempt stamped `new_execution:
+                       false`. Recovery restores lineage; it never relaxes a
+                       check and never manufactures completion; see
+                       `adopt_blockers`.
 """
 from __future__ import annotations
 
@@ -48,7 +60,17 @@ ALLOWED_STATUS = ("complete", "failed", "aborted", "superseded")
 # module used to have. See `repair_scope`.
 ATTEMPT_KIND_FULL = "full_cell"
 ATTEMPT_KIND_REPAIR = "repair"
-ATTEMPT_KINDS = (ATTEMPT_KIND_FULL, ATTEMPT_KIND_REPAIR)
+# A `full_cell` run whose controller died before it recorded itself. The trials
+# it produced are on disk and valid; only the ledger entry is missing. Adopting
+# them is provenance RECOVERY -- no trial is executed, nothing on disk is
+# touched, and the record says plainly that it was written after the fact. It is
+# a distinct kind so that "we recovered this" can never be read as "we ran this".
+ATTEMPT_KIND_ORIGINAL_RECOVERED = "original_recovered"
+ATTEMPT_KINDS = (ATTEMPT_KIND_FULL, ATTEMPT_KIND_REPAIR,
+                 ATTEMPT_KIND_ORIGINAL_RECOVERED)
+# Kinds answerable for the WHOLE profile/shard cell, as opposed to a repair
+# subset. A later complete whole-cell attempt supersedes an earlier one.
+WHOLE_CELL_KINDS = (ATTEMPT_KIND_FULL, ATTEMPT_KIND_ORIGINAL_RECOVERED)
 
 PLAN_BASIS_FILE = "repair_plan"
 PLAN_BASIS_RECONSTRUCTED = "reconstructed_from_run_dirs"
@@ -309,7 +331,7 @@ def cmd_record(args) -> int:
         for e in existing:
             if (e["cell"] == cell.key and e["superseded_by"] is None
                     and e["attempt_id"] != attempt_id
-                    and e.get("attempt_kind", ATTEMPT_KIND_FULL) == ATTEMPT_KIND_FULL):
+                    and e.get("attempt_kind", ATTEMPT_KIND_FULL) in WHOLE_CELL_KINDS):
                 e["superseded_by"] = attempt_id
                 if e["status"] == "complete":
                     e["status"] = "superseded"
@@ -328,6 +350,206 @@ def cmd_record(args) -> int:
                      "profile_shard_expected_trials"]
     print(json.dumps({k: entry[k] for k in keys}, indent=2))
     return 0 if status == "complete" else 1
+
+
+# --------------------------------------------------------------------------- #
+# adopt -- provenance RECOVERY for a run whose controller never recorded it
+# --------------------------------------------------------------------------- #
+# The FULL shard-1 controller died in `05_slice_dataset` before `record_attempts`
+# ran, so ten run directories holding 986 valid cells were never entered in the
+# ledger. `build` refuses them, correctly: a trial named by no attempt has no
+# lineage, and admitting it is exactly the unattributed-row failure this module
+# exists to prevent.
+#
+# `record` is the wrong tool for that. It is written for a run that just
+# finished, and using it here would file these directories as an execution that
+# happened now. This mode says what actually happened instead: the run is old,
+# the ledger entry is new, no trial was executed, and the record carries that on
+# its face (`recovered_provenance`, `new_execution: false`, the reason, and the
+# separate `attempt_kind`).
+#
+# Recovery is not a way to admit data that could not otherwise be admitted. Every
+# check `build` would apply still applies here, BEFORE anything is written, and
+# any one of them failing means nothing is written at all.
+def adopt_blockers(cell, run_dirs, *, attempts, trials) -> list[str]:
+    """Every reason these run dirs may NOT be adopted. [] means adoptable."""
+    why = []
+
+    # (1) NO PATHS OUTSIDE, and the directory must actually be there.
+    for d in run_dirs:
+        try:
+            lib.assert_campaign_path(d, "run directory")
+        except ValueError as exc:
+            why.append(str(exc))
+        if not d.is_dir():
+            why.append(f"{d} is not a directory on disk")
+
+    # (2) Not already attributed. Adoption RECOVERS lineage; it never competes
+    # with lineage that already exists, which would be a duplicate record.
+    claimed = {}
+    for a in attempts:
+        for rd in (a.get("run_dirs") or [a["run_dir"]]):
+            claimed[Path(rd).name] = a["attempt_id"]
+    for d in run_dirs:
+        if d.name in claimed:
+            why.append(f"{d.name} is already named by attempt {claimed[d.name]} - "
+                       "that is a duplicate record, not a recovery")
+
+    # (3) The directories must belong to THIS cell, decided by the same matcher
+    # the audit uses -- not by reading the name here and hoping it agrees.
+    belongs = {d.name for d in
+               cells.shard_run_dirs(cell.mode, cell.shard_index,
+                                    profiles=[cell.profile])[cell.profile]}
+    for d in run_dirs:
+        if d.name not in belongs:
+            why.append(f"{d.name} is not a run directory of {cell.key}")
+
+    # (4) The run must say it belongs to this campaign.
+    for d in run_dirs:
+        meta = lib.jload(d / "run_metadata.json") or {}
+        got = meta.get("campaign_id")
+        if got and got != lib.CAMPAIGN_ID:
+            why.append(f"{d.name} run_metadata.json names campaign {got!r}, "
+                       f"not {lib.CAMPAIGN_ID!r}")
+
+    if not trials:
+        why.append("no trial found in any of these run directories - there is "
+                   "nothing to recover")
+        return why
+
+    # (5) Model and runtime provenance, from the trials themselves. Only a trial
+    # where a model actually generated can testify to which model ran; a blocked
+    # trial carries the safety layer's placeholder name.
+    pin = lib.MODEL_PINS[cell.profile]
+    models = sorted({t.model_name for t in trials if t.model_name and t.model_started})
+    off = [m for m in models if m.split("/")[-1] != pin.split("/")[-1]]
+    if off:
+        why.append(f"model(s) {off} do not match the pin {pin!r}")
+    vpin = lib.VERSION_PINS[cell.profile]["version"]
+    versions = sorted({t.agent_version for t in trials if t.agent_version})
+    offv = [v for v in versions if v != vpin]
+    if offv:
+        why.append(f"agent version(s) {offv} do not match the pin {vpin!r}")
+
+    # (6) Task-definition provenance: the original frozen manifest, or an
+    # approved amendment, and nothing else.
+    why += [f"task-definition provenance: {p}" for p in amendments.verify_cell(cell)]
+    return why
+
+
+def cmd_adopt(args) -> int:
+    paths = _paths()
+    paths["provenance"].mkdir(parents=True, exist_ok=True)
+    cell = lib.Cell(args.mode, args.profile, args.shard)
+    apply = bool(args.apply)
+    run_dirs = [Path(d) for d in (args.run_dir or []) if d]
+
+    trials = []
+    for d in run_dirs:
+        if d.is_dir():
+            trials.extend(lib.scan_run_dir(d))
+    counts = {}
+    for t in trials:
+        counts[t.status] = counts.get(t.status, 0) + 1
+
+    attempts = _load_attempts(paths["attempts"])
+    blockers = adopt_blockers(cell, run_dirs, attempts=attempts, trials=trials)
+
+    print(f"adopt {cell.key}   ({'APPLY' if apply else 'DRY RUN'})")
+    print("  recovering provenance for an existing run. NO trial is executed.")
+    print(f"  run dirs to attach                   : {len(run_dirs)}")
+    for d in run_dirs:
+        print(f"    {d.name}")
+    print(f"  trials observed on disk              : {len(trials)}")
+    for st in sorted(counts):
+        print(f"    {st:34}: {counts[st]}")
+    print(f"  profile/shard expected trials        : {cell.expected_trials}")
+    for b in blockers:
+        print(f"  ! {b}")
+    if blockers:
+        print("  REFUSED: nothing written.")
+        return 1
+
+    complete = counts.get(lib.STATUS_COMPLETE, 0)
+    blocked = counts.get(lib.STATUS_PROVIDER_BLOCKED, 0)
+    accepted = complete + blocked
+    # The status is what the run ACTUALLY was, never what would be convenient.
+    # A recovered original may not be recorded complete unless it genuinely
+    # closed every trial its cell expects -- recovery must not manufacture
+    # completion that the crash prevented.
+    status = ("complete" if accepted == cell.expected_trials
+              and len(trials) == cell.expected_trials else "failed")
+    if args.status != "auto":
+        if args.status == "complete" and status != "complete":
+            print(f"  ! refusing --status complete: {accepted} of "
+                  f"{cell.expected_trials} expected trials were accepted")
+            return 1
+        status = args.status
+
+    meta = {}
+    for d in run_dirs:
+        meta = lib.jload(d / "run_metadata.json") or meta
+    versions = sorted({t.agent_version for t in trials if t.agent_version})
+    models = sorted({t.model_name for t in trials if t.model_name and t.model_started})
+    attempt_id = (f"{cell.mode}-{cell.profile}-s{cell.shard_index}-"
+                  f"a{sum(1 for e in attempts if e['cell'] == cell.key) + 1:02d}")
+
+    entry = {
+        "campaign_id": lib.CAMPAIGN_ID,
+        "cell": cell.key,
+        "mode": cell.mode,
+        "profile": cell.profile,
+        "shard": cell.shard_label,
+        "shard_index": cell.shard_index,
+        "attempt_id": attempt_id,
+        "run_id": run_dirs[0].name,
+        "run_dir": str(run_dirs[0].resolve().relative_to(lib.PROJECT_ROOT)),
+        "run_dirs": [str(d.resolve().relative_to(lib.PROJECT_ROOT)) for d in run_dirs],
+        "model_id": meta.get("model") or (models[0] if len(models) == 1 else models),
+        "agent": meta.get("agent"),
+        "agent_version_requested": meta.get("agent_version_requested"),
+        "agent_version_observed": versions[0] if len(versions) == 1 else versions,
+        "started_at": args.started_at or meta.get("created_at"),
+        # When the RUN finished, which is not knowable from a crashed
+        # controller. It is left null rather than filled with the time this
+        # record was written -- see `recorded_at` for that.
+        "finished_at": args.finished_at,
+        "expected_trials": cell.expected_trials,
+        # Observed, from disk, exactly as found.
+        "observed_trials": len(trials),
+        "accepted_observations": accepted,
+        "model_observations": complete,
+        "provider_blocked": blocked,
+        "status_counts": counts,
+        "status": status,
+        "attempt_kind": ATTEMPT_KIND_ORIGINAL_RECOVERED,
+        "superseded_by": None,
+        "recorded_at": lib.now_iso(),
+        # The three fields that keep this record honest about what it is.
+        "recovered_provenance": True,
+        "new_execution": False,
+        "recovery_reason": args.reason,
+        "note": args.note or "",
+    }
+
+    if not apply:
+        print("  would append:")
+        print("    " + json.dumps({k: entry[k] for k in (
+            "attempt_id", "attempt_kind", "status", "observed_trials",
+            "expected_trials", "accepted_observations", "provider_blocked",
+            "recovered_provenance", "new_execution", "recovery_reason")}))
+        print("  DRY RUN: nothing written. Re-run with --apply to record.")
+        return 0
+
+    # APPEND ONLY. Existing records are never rewritten here: a recovered
+    # original is `failed`, so it supersedes nothing, and the repair attempts
+    # that complement it keep their own entries untouched.
+    with open(paths["attempts"], "a") as fh:
+        fh.write(json.dumps(entry) + "\n")
+    _rebuild_accepted(paths)
+    print(f"  appended {attempt_id}  status={status}  "
+          f"observed={len(trials)}  accepted={accepted}")
+    return 0
 
 
 def _is_repair(a: dict) -> bool:
@@ -403,6 +625,10 @@ def _legacy_repair_candidates(attempts, mode, shard, attempt_ids=None):
             continue
         # Already scoped correctly -- nothing to correct.
         if a.get("attempt_kind") == ATTEMPT_KIND_REPAIR:
+            continue
+        # A recovered original is a whole-cell run by definition. Reinterpreting
+        # one as a repair would invent a plan it never had.
+        if a.get("attempt_kind") == ATTEMPT_KIND_ORIGINAL_RECOVERED:
             continue
         if "repair-shard" in (a.get("note") or ""):
             out.append(a)
@@ -1036,6 +1262,30 @@ def main() -> None:
     rc.add_argument("--apply", action="store_true",
                     help="write the records (default: dry run, writes nothing)")
     rc.set_defaults(fn=cmd_reconcile)
+
+    ad = sub.add_parser(
+        "adopt",
+        help="offline: recover the ledger entry for an EXISTING run whose "
+             "controller crashed before it recorded itself. Never runs a trial.")
+    ad.add_argument("--mode", required=True, choices=lib.MODES)
+    ad.add_argument("--profile", required=True, choices=lib.PROFILES)
+    ad.add_argument("--shard", required=True, type=int, choices=lib.SHARD_INDICES)
+    ad.add_argument("--run-dir", required=True, action="append",
+                    help="an existing run directory to attach to this ONE "
+                         "recovered attempt. Repeat for each batch the run "
+                         "produced; they are one attempt, not several.")
+    ad.add_argument("--reason", required=True,
+                    help="why this run was never recorded. Recorded verbatim.")
+    ad.add_argument("--status", default="auto", choices=("auto",) + ALLOWED_STATUS,
+                    help="default auto: derived from what is on disk. "
+                         "--status complete is refused unless the run really "
+                         "closed every expected trial.")
+    ad.add_argument("--started-at")
+    ad.add_argument("--finished-at")
+    ad.add_argument("--note")
+    ad.add_argument("--apply", action="store_true",
+                    help="write the record (default: dry run, writes nothing)")
+    ad.set_defaults(fn=cmd_adopt)
 
     b = sub.add_parser("build", help="rebuild the campaign corpus from accepted attempts")
     b.set_defaults(fn=cmd_build)
