@@ -86,7 +86,16 @@ class Fixture:
         cell = lib.Cell(mode, profile, shard_index)
         ds = self.root / "datasets" / "_shards" / mode / profile / cell.shard_label
         ds.mkdir(parents=True, exist_ok=True)
-        (ds / "manifest.json").write_text(json.dumps({"mode": mode, "profile": profile}) + "\n")
+        # The dataset manifest is the ONLY enumeration of what the shard is
+        # supposed to produce (campaign.cells.expected_cells); a cell missing
+        # from disk is detectable only because this list names it.
+        (ds / "manifest.json").write_text(json.dumps({
+            "mode": mode, "profile": profile,
+            "tasks": [{"directory": f"ea-{b}-{arm}", "base_task_id": b,
+                       "condition": arm}
+                      for b in self.shard_bases(shard_index)
+                      for arm in lib.ARMS[mode]],
+        }) + "\n")
         trials = []
         for b in self.shard_bases(shard_index):
             for arm in lib.ARMS[mode]:
@@ -126,8 +135,15 @@ class Fixture:
                               "total_cached_tokens": 0, "total_cost_usd": 0.0 if synthetic else 1.25,
                               "total_steps": 3},
         }))
+        # A structurally faithful trial records the lifecycle timestamps the
+        # cell-level validator reads: the agent execution ended and the verifier
+        # reached a verdict. Without them the trial is PARTIAL_MODEL_FAILURE.
         (td / "result.json").write_text(json.dumps({
             "task_name": f"ea-{base_id}-{arm}",
+            "started_at": "2026-09-02T06:00:00Z",
+            "finished_at": "2026-09-02T06:30:00Z",
+            "agent_execution": {"finished_at": "2026-09-02T06:25:00Z"},
+            "verifier": {"finished_at": "2026-09-02T06:30:00Z"},
             "verifier_result": {"rewards": {"reward": 1.0, "overall_pass": 1.0}},
         }))
         if censored:
@@ -138,7 +154,10 @@ class Fixture:
     def make_run(self, mode, profile, shard_index, *, drop=0, dup=False,
                  synthetic=0, censored=0, version=None, drop_arm=None, suffix=""):
         cell = lib.Cell(mode, profile, shard_index)
-        run_dir = self.root / mode / f"swe-{mode}-{profile}-{cell.shard_label}{suffix}"
+        # Batch suffix included: the real controller splits a cell across
+        # several Harbor invocations, and campaign.cells.shard_run_dirs matches
+        # on that shape.
+        run_dir = self.root / mode / f"swe-{mode}-{profile}-{cell.shard_label}{suffix}-b01"
         parent = run_dir / run_dir.name
         parent.mkdir(parents=True, exist_ok=True)
         made = 0
@@ -156,10 +175,14 @@ class Fixture:
                 break
         if dup:
             b, arm = self.shard_bases(shard_index)[0], list(lib.ARMS[mode])[0]
+            # A SECOND COMPLETE_VALID observation of one experimental cell --
+            # a full copy, result.json included. A half-copy would merely be a
+            # partial trial and would resolve cleanly against the original.
+            src = parent / f"ea-{b}-{arm}__x{abs(hash((b, arm))) % 9999:04d}"
             td = parent / f"ea-{b}-{arm}__DUPLICATE"
             (td / "agent").mkdir(parents=True, exist_ok=True)
-            shutil.copy(parent / f"ea-{b}-{arm}__x{abs(hash((b, arm))) % 9999:04d}" / "agent" / "trajectory.json",
-                        td / "agent" / "trajectory.json")
+            shutil.copy(src / "agent" / "trajectory.json", td / "agent" / "trajectory.json")
+            shutil.copy(src / "result.json", td / "result.json")
         (run_dir / "run_metadata.json").write_text(json.dumps({
             "model": lib.MODEL_PINS[profile], "agent": lib.VERSION_PINS[profile]["agent"],
             "agent_version_requested": version or lib.VERSION_PINS[profile]["version"],
@@ -190,6 +213,21 @@ class Fixture:
 
     def build_corpus(self, provenance):
         return _quiet(provenance.cmd_build, _Args())
+
+    # -- corpus side -------------------------------------------------------- #
+    # The corpus BUILDER now fails closed on a defective cell, so a defective
+    # corpus can no longer be produced through it. The validator is the
+    # independent second gate and still has to catch these, so the defect is
+    # reintroduced into a corpus the builder wrote clean.
+    def corpus_path(self):
+        return lib.campaign_paths()["provenance"] / "corpus.jsonl"
+
+    def corpus_rows(self):
+        return [json.loads(l) for l in self.corpus_path().read_text().splitlines()
+                if l.strip()]
+
+    def write_corpus(self, rows):
+        self.corpus_path().write_text("".join(json.dumps(r) + "\n" for r in rows))
 
 
 class _Args:
@@ -240,7 +278,15 @@ class CampaignToolingTest(unittest.TestCase):
 
     # -- 1. incomplete shard ------------------------------------------------ #
     def test_01_incomplete_shard_detected(self):
-        self.fx.build({("full", "claude", 2): {"drop": 17}})
+        # The builder refuses to emit a short shard (see test_09), so the hole
+        # is reintroduced into a clean corpus to exercise the VALIDATOR.
+        self.fx.build()
+        rows = self.fx.corpus_rows()
+        victims = [r for r in rows
+                   if (r["mode"], r["profile"], r["shard_index"]) == ("full", "claude", 2)][:17]
+        self.assertEqual(len(victims), 17)
+        drop = {id(r) for r in victims}
+        self.fx.write_corpus([r for r in rows if id(r) not in drop])
         rep = _validate()
         self.assertFalse(rep["ok"])
         self.assertIn("X1", self._failed_ids(rep))
@@ -259,6 +305,13 @@ class CampaignToolingTest(unittest.TestCase):
                                    status="complete" if dup else "auto")
         rc = self.fx.build_corpus(provenance)
         self.assertEqual(rc, 1, "provenance build must FAIL on a duplicate, not dedupe it")
+        report = json.loads(
+            (lib.campaign_paths()["provenance"] / "build_report.json").read_text())
+        self.assertTrue(
+            any("COMPLETE_VALID observations" in e for e in report["errors"]),
+            f"the duplicate must be named, not deduped: {report['errors'][:3]}")
+        self.assertFalse(self.fx.corpus_path().exists(),
+                         "a rejected build must leave no corpus behind to validate")
         rep = _validate()
         self.assertFalse(rep["ok"], "a corpus the builder rejected must never validate")
         self.assertIn("X4", self._failed_ids(rep))
@@ -290,14 +343,28 @@ class CampaignToolingTest(unittest.TestCase):
 
     # -- 4. synthetic trial ------------------------------------------------- #
     def test_04_synthetic_trial_detected(self):
-        self.fx.build({("full", "fable", 3): {"synthetic": 12, "force": True}})
+        self.fx.build()
+        rows = self.fx.corpus_rows()
+        hit = [r for r in rows
+               if (r["mode"], r["profile"], r["shard_index"]) == ("full", "fable", 3)][:12]
+        self.assertEqual(len(hit), 12)
+        for r in hit:
+            r["status"], r["model_name"], r["cost_usd"] = lib.STATUS_SYNTHETIC, "<synthetic>", 0.0
+        self.fx.write_corpus(rows)
         rep = _validate()
         self.assertFalse(rep["ok"])
         self.assertIn("F:full/fable:5", self._failed_ids(rep))
 
     # -- 5. budget-censored trial ------------------------------------------- #
     def test_05_budget_censored_trial_detected(self):
-        self.fx.build({("resource", "claude", 2): {"censored": 9, "force": True}})
+        self.fx.build()
+        rows = self.fx.corpus_rows()
+        hit = [r for r in rows
+               if (r["mode"], r["profile"], r["shard_index"]) == ("resource", "claude", 2)][:9]
+        self.assertEqual(len(hit), 9)
+        for r in hit:
+            r["status"] = lib.STATUS_BUDGET_CENSORED
+        self.fx.write_corpus(rows)
         rep = _validate()
         self.assertFalse(rep["ok"])
         self.assertIn("R:resource/claude:6", self._failed_ids(rep))
@@ -313,7 +380,15 @@ class CampaignToolingTest(unittest.TestCase):
 
     # -- 7. missing task / arm hole ----------------------------------------- #
     def test_07_missing_arm_detected(self):
-        self.fx.build({("resource", "llama", 1): {"drop_arm": "eval-resource-scaf", "force": True}})
+        self.fx.build()
+        rows = self.fx.corpus_rows()
+        victim = self.fx.shard_bases(1)[0]
+        kept = [r for r in rows
+                if not ((r["mode"], r["profile"], r["shard_index"]) == ("resource", "llama", 1)
+                        and r["base_task_id"] == victim
+                        and r["arm"] == "eval-resource-scaf")]
+        self.assertEqual(len(rows) - len(kept), 1, "exactly one arm hole")
+        self.fx.write_corpus(kept)
         rep = _validate()
         self.assertFalse(rep["ok"])
         failed = self._failed_ids(rep)

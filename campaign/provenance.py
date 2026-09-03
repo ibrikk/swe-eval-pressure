@@ -34,9 +34,10 @@ import argparse
 import json
 import os
 import sys
+from collections import Counter
 from pathlib import Path
 
-from campaign import cells, lib
+from campaign import amendments, cells, lib
 
 ALLOWED_STATUS = ("complete", "failed", "aborted", "superseded")
 
@@ -59,6 +60,10 @@ def _paths():
     p["accepted"] = p["provenance"] / "accepted_runs.json"
     p["corpus"] = p["provenance"] / "corpus.jsonl"
     p["closures"] = p["provenance"] / "cell_closures.jsonl"
+    # Human-signed decisions about which of two valid observations of one
+    # experimental cell is authoritative. The builder reads it; nothing writes it.
+    p["obs_supersessions"] = p["provenance"] / "observation_supersessions.jsonl"
+    p["resolution"] = p["provenance"] / "corpus_resolution.jsonl"
     return p
 
 
@@ -604,6 +609,191 @@ def cmd_reconcile(args) -> int:
 
 
 # --------------------------------------------------------------------------- #
+# corpus resolution -- ONE observation per experimental cell, chosen by LINEAGE
+#
+# The corpus is assembled from the CELL-LEVEL audit map (`campaign.cells.audit`)
+# -- the same map the shard validator reads -- and not by scanning the run
+# directories of accepted attempts and hoping each cell turns up exactly once.
+# Once a repair has run, a cell legitimately holds more than one observation,
+# and which of them REPRESENTS the cell is a question about provenance, not
+# about ordering. Nothing below ever tie-breaks on task_name, timestamp, newest
+# run directory, reward, or any other implicit rule. The policy, in full:
+#
+#   1. failed original + eligible repair -> the REPAIR observation, alone. The
+#      failed original is neither deleted nor hidden: it stays in the cell audit
+#      on disk and is named as superseded in corpus_resolution.jsonl.
+#   2. two COMPLETE_VALID observations -> HARD ERROR. Two valid runs of one cell
+#      is a fact about the experiment that a person has to explain. The builder
+#      will accept a human decision from observation_supersessions.jsonl; it
+#      will never make one.
+#   3. PROVIDER_BLOCKED stands. It is an accepted outcome of the deployed stack,
+#      never re-run and never replaced by a repair. A repair observation for a
+#      blocked cell means a plan violated the exclusion rule, so the build fails
+#      closed rather than choosing between them.
+#   4. failed original with no eligible repair -> the cell is incomplete and the
+#      build fails closed. A short corpus is never written.
+#   5. a repair observation is ELIGIBLE only if ALL of:
+#        - its cell was explicitly in that repair attempt's plan
+#        - the repair attempt completed and has not been superseded
+#        - model pin, agent version pin and task-definition provenance match
+#        - the cell-level validator accepted the observation itself
+#
+# Note what is NOT here: repair attempts are not promoted into the whole-shard
+# `accepted` set to make this work. They stay scoped to their plan, and the
+# resolution reads them as what they are.
+# --------------------------------------------------------------------------- #
+SOURCE_ORIGINAL = "original"
+SOURCE_REPAIR = "repair"
+SOURCE_PROVIDER_BLOCKED = "provider_blocked"
+SOURCE_APPROVED = "human_approved_supersession"
+
+OBS_SUPERSESSION_FIELDS = ("cell_key", "winner_trial_dir", "approved_by", "reason")
+
+
+def load_observation_supersessions(paths) -> tuple[dict, list[str]]:
+    """Human-signed decisions about which of two valid observations is authoritative.
+
+    There is no automatic rule for this and there must not be one. A malformed
+    record is reported as an error, never skipped: a supersession file that is
+    silently half-ignored is worse than none at all.
+    """
+    out, errors = {}, []
+    for i, rec in enumerate(_load_attempts(paths["obs_supersessions"]), 1):
+        missing = [k for k in OBS_SUPERSESSION_FIELDS if not rec.get(k)]
+        if missing:
+            errors.append(f"observation_supersessions.jsonl line {i}: missing {missing}")
+            continue
+        out[rec["cell_key"]] = rec
+    return out, errors
+
+
+def repair_ineligibility(cell_key, obs, attempt, trial, *, profile,
+                         task_definition_problems) -> list[str]:
+    """Why this repair observation may NOT represent the cell. [] means eligible."""
+    why = []
+    if cell_key not in set(attempt.get("planned_repair_cell_keys") or []):
+        why.append(f"cell was not in the plan of repair attempt {attempt['attempt_id']} "
+                   f"({attempt.get('repair_plan') or 'no plan recorded'})")
+    if attempt["status"] != "complete" or attempt["superseded_by"]:
+        why.append(f"repair attempt {attempt['attempt_id']} is {attempt['status']}"
+                   + (f", superseded by {attempt['superseded_by']}"
+                      if attempt["superseded_by"] else ""))
+    if obs.status not in cells.ACCEPTED_STATUSES:
+        why.append(f"cell-level validator rejected the observation ({obs.status})")
+    if task_definition_problems:
+        why.append("task-definition provenance unverified: "
+                   f"{task_definition_problems[0]}")
+    if trial is None:
+        why.append(f"no scanned trial for {obs.run_dir}/{obs.trial_dir}")
+        return why
+    # Pins are only assertable where a model actually generated; a blocked
+    # observation carries the safety layer's placeholder name (validate F8).
+    if obs.status == cells.COMPLETE_VALID:
+        pin = lib.MODEL_PINS[profile]
+        got = trial.model_name or ""
+        if got.split("/")[-1] != pin.split("/")[-1]:
+            why.append(f"model {got!r} does not match the pin {pin!r}")
+        vpin = lib.VERSION_PINS[profile]["version"]
+        if trial.agent_version and trial.agent_version != vpin:
+            why.append(f"agent version {trial.agent_version!r} does not match "
+                       f"the pin {vpin!r}")
+    return why
+
+
+def resolve_cell(rec, *, attempt_by_run, approvals, trials, task_definition_problems,
+                 superseded_runs=frozenset()):
+    """Pick the one observation representing this cell.
+
+    Returns (observation|None, source, superseded_observations, errors).
+    """
+    key = rec.cell.key
+    profile = rec.cell.profile
+    errors = []
+    obs_all, orphans = [], []
+    for o in rec.observations:
+        # A run directory whose attempt the ledger records as superseded is not
+        # a candidate: that supersession is itself the explicit human decision
+        # about which attempt is authoritative, made one level up. Its trials
+        # stay on disk.
+        if o.run_dir in superseded_runs:
+            continue
+        if attempt_by_run.get(o.run_dir) is None:
+            orphans.append(o)
+            continue
+        obs_all.append(o)
+    if orphans:
+        errors.append(
+            f"{key}: run dir(s) {sorted({o.run_dir for o in orphans})} are named by "
+            "no attempt in the ledger, so these observations have no lineage. "
+            "Record the run that produced them (`campaign.provenance record --mode "
+            "... --profile ... --shard ... --run-dir ...`) rather than admitting an "
+            "unattributed trial.")
+    # WHAT a run was, not which index it happens to be in: an observation is a
+    # repair iff the attempt that produced it declared repair scope. A repair
+    # attempt that FAILED is therefore still a repair, and is rejected by the
+    # eligibility rules below -- never quietly reclassified as an original.
+    originals = [o for o in obs_all if not _is_repair(attempt_by_run[o.run_dir])]
+    repairs = [o for o in obs_all if _is_repair(attempt_by_run[o.run_dir])]
+
+    # (3) An accepted stack outcome from the original run is final.
+    blocked_original = [o for o in originals if o.status == cells.PROVIDER_BLOCKED]
+    if blocked_original:
+        if any(o.status == cells.COMPLETE_VALID for o in repairs):
+            errors.append(
+                f"{key}: PROVIDER_BLOCKED cell also carries repair observations "
+                f"({', '.join(o.trial_dir for o in repairs)}). A blocked cell is an "
+                "accepted stack outcome and is never re-run - the plan that included "
+                "it was wrong. Resolve explicitly; this builder will not choose.")
+        return blocked_original[0], SOURCE_PROVIDER_BLOCKED, [], errors
+
+    valid_originals = [o for o in originals if o.status == cells.COMPLETE_VALID]
+    eligible, rejected = [], []
+    for o in repairs:
+        if o.status != cells.COMPLETE_VALID:
+            continue
+        why = repair_ineligibility(
+            key, o, attempt_by_run[o.run_dir], trials.get((o.run_dir, o.trial_dir)),
+            profile=profile, task_definition_problems=task_definition_problems)
+        (rejected if why else eligible).append((o, why))
+    eligible = [o for o, _ in eligible]
+
+    candidates = valid_originals + eligible
+    if len(candidates) > 1:
+        # (2) Two valid observations. Never silently choose one.
+        approval = approvals.get(key)
+        winner = [c for c in candidates
+                  if approval and c.trial_dir == approval["winner_trial_dir"]]
+        if not winner:
+            errors.append(
+                f"{key}: {len(candidates)} COMPLETE_VALID observations "
+                f"({', '.join(c.trial_dir for c in candidates)}) with no approved "
+                "supersession - a human must record which one is authoritative in "
+                "provenance/observation_supersessions.jsonl. NOT deduping.")
+            return None, "", [], errors
+        w = winner[0]
+        return w, SOURCE_APPROVED, [c for c in candidates if c is not w], errors
+
+    if len(candidates) == 1:
+        w = candidates[0]
+        if w in eligible:
+            # (1) The failed original is superseded, and stays on disk.
+            return w, SOURCE_REPAIR, list(originals), errors
+        return w, SOURCE_ORIGINAL, [], errors
+
+    # (4) Nothing valid. A block observed during the repair run is still an
+    # accepted stack outcome; anything else leaves the cell incomplete.
+    blocked = [o for o in obs_all if o.status == cells.PROVIDER_BLOCKED]
+    if blocked:
+        return blocked[0], SOURCE_PROVIDER_BLOCKED, [], errors
+    detail = "; ".join(f"{o.trial_dir} {o.status}" for o in obs_all) or "no observation"
+    for o, why in rejected:
+        detail += f"; repair {o.trial_dir} INELIGIBLE: {'; '.join(why)}"
+    errors.append(f"{key}: no accepted observation ({detail}) - cell incomplete, "
+                  "refusing to write a short corpus")
+    return None, "", [], errors
+
+
+# --------------------------------------------------------------------------- #
 # build
 # --------------------------------------------------------------------------- #
 def cmd_build(args) -> int:
@@ -612,34 +802,93 @@ def cmd_build(args) -> int:
         print("no accepted runs; nothing to build", file=sys.stderr)
         return 1
     doc = _rebuild_accepted(paths)
+    attempts = _load_attempts(paths["attempts"])
+    live = [a for a in attempts
+            if a["status"] == "complete" and a["superseded_by"] is None]
 
     errors = []
     if doc["conflicting_cells"]:
         errors.append(f"multiple accepted attempts for cells: {doc['conflicting_cells']} "
                       "- resolve explicitly, this tool will not pick one for you")
 
-    rows, seen = [], {}
-    for a in doc["accepted"]:
-        attempt_dirs = [lib.PROJECT_ROOT / d for d in (a.get("run_dirs") or [a["run_dir"]])]
-        bad = False
-        for d in attempt_dirs:
+    approvals, approval_errors = load_observation_supersessions(paths)
+    errors += approval_errors
+
+    # Attribution: which recorded attempt produced each run directory. EVERY
+    # attempt counts here, not only the live ones. A whole-cell attempt that
+    # FAILED at shard level still produced the individual cells it did produce
+    # -- that is the premise repair rests on -- and the cell-level audit, not
+    # the attempt's status, decides which of those cells are valid. Later
+    # records win, so a repair correction supersedes the record it corrects.
+    # NO PATHS OUTSIDE still applies to every one of them.
+    attempt_by_run = {}
+    for a in attempts:
+        for d in (a.get("run_dirs") or [a["run_dir"]]):
             try:
-                lib.assert_campaign_path(d, "accepted run directory")
+                lib.assert_campaign_path(lib.PROJECT_ROOT / d, "recorded run directory")
             except ValueError as exc:
-                errors.append(str(exc)); bad = True
-        if bad:
-            continue
-        scanned = []
-        for d in attempt_dirs:
-            scanned.extend(lib.scan_run_dir(d))
-        for t in scanned:
-            key = (a["cell"], t.base_task_id, t.arm)
-            if key in seen:
-                errors.append(
-                    f"duplicate cell {key} appears in both {seen[key]} and {a['attempt_id']} "
-                    "- NOT deduping; fix the ledger")
+                errors.append(str(exc))
                 continue
-            seen[key] = a["attempt_id"]
+            attempt_by_run[Path(d).name] = a
+    superseded_runs = {name for name, a in attempt_by_run.items() if a["superseded_by"]}
+
+    # Scope: the (mode, shard) pairs the ledger holds a live attempt for. A
+    # shard nobody has run yet is simply absent -- `cells_complete` /
+    # `cells_expected` report that gap, and campaign.validate gates on it.
+    #
+    # Within a shard that IS in scope, EVERY profile the ledger names is
+    # audited, including one whose attempts all failed. Taking the profile list
+    # from the live attempts instead would make a wholly-failed profile vanish
+    # from `expected` and leave a short corpus looking complete -- the same
+    # silent omission this module exists to prevent.
+    in_scope = {(a["mode"], int(a["shard_index"])) for a in live}
+    scope: dict = {k: set() for k in in_scope}
+    for a in attempts:
+        k = (a["mode"], int(a["shard_index"]))
+        if k in scope:
+            scope[k].add(a["profile"])
+    if not scope:
+        errors.append("no complete, unsuperseded attempt in the ledger names a "
+                      "shard to build - refusing to write an empty corpus")
+
+    rows, resolutions = [], []
+    expected = 0
+    counts = Counter()
+    for (mode, shard), profs in sorted(scope.items()):
+        profs = sorted(profs)
+        audit_result = cells.audit(mode, shard, profiles=profs)
+        expected += audit_result["expected"]
+
+        trials = {}
+        for _p, dirs in cells.shard_run_dirs(mode, shard, profiles=profs).items():
+            for d in dirs:
+                for t in lib.scan_run_dir(d):
+                    trials[(d.name, t.trial_dir)] = t
+
+        # Task-definition provenance, per profile/shard cell, from the amendment
+        # ledger: original definition, or an approved amendment, or nothing.
+        td_problems = {p: amendments.verify_cell(lib.Cell(mode, p, shard))
+                       for p in profs}
+
+        for key in sorted(audit_result["records"]):
+            rec = audit_result["records"][key]
+            obs, source, superseded, errs = resolve_cell(
+                rec, attempt_by_run=attempt_by_run, approvals=approvals, trials=trials,
+                task_definition_problems=td_problems.get(rec.cell.profile) or [],
+                superseded_runs=superseded_runs)
+            errors += errs
+            if obs is None:
+                counts["unresolved"] += 1
+                continue
+            t = trials.get((obs.run_dir, obs.trial_dir))
+            if t is None:
+                errors.append(f"{key}: resolved to {obs.run_dir}/{obs.trial_dir}, which "
+                              "is not in any scanned run directory")
+                continue
+            a = attempt_by_run[obs.run_dir]
+            counts[source] += 1
+            if source == SOURCE_REPAIR and superseded:
+                counts["repair_resolved"] += 1
             rows.append({
                 "campaign_id": lib.CAMPAIGN_ID,
                 "cell": a["cell"], "mode": a["mode"], "profile": a["profile"],
@@ -661,9 +910,42 @@ def cmd_build(args) -> int:
                 "model_started": t.model_started,
                 "provider_refusal": t.provider_refusal,
                 "provider_refusal_category": t.provider_refusal_category,
+                # Lineage, carried IN the corpus: which run directory this row
+                # came from and why that observation represents the cell.
+                "cell_key": key,
+                "source_run_dir": obs.run_dir,
+                "resolution": source,
             })
+            if superseded or source in (SOURCE_REPAIR, SOURCE_APPROVED):
+                resolutions.append({
+                    "campaign_id": lib.CAMPAIGN_ID, "cell_key": key, "cell": a["cell"],
+                    "mode": rec.cell.mode, "profile": rec.cell.profile,
+                    "shard": rec.cell.shard, "base_task_id": rec.cell.base_task_id,
+                    "arm": rec.cell.arm, "resolution": source,
+                    "winner": {"run_dir": obs.run_dir, "trial_dir": obs.trial_dir,
+                               "status": obs.status, "attempt_id": a["attempt_id"],
+                               "attempt_kind": a.get("attempt_kind", ATTEMPT_KIND_FULL),
+                               "repair_plan": a.get("repair_plan")},
+                    # Preserved, not deleted: the path is the proof.
+                    "superseded_observations": [
+                        {"run_dir": o.run_dir, "trial_dir": o.trial_dir,
+                         "status": o.status, "reason": o.reason, "preserved_at": o.path}
+                        for o in superseded],
+                    "approved_by": (approvals.get(key) or {}).get("approved_by"),
+                })
 
-    # FAIL CLOSED. A duplicate is skipped rather than deduped, which can leave a
+    unique = {(r["mode"], r["profile"], r["shard_index"], r["base_task_id"], r["arm"])
+              for r in rows}
+    duplicates = len(rows) - len(unique)
+    if duplicates:
+        errors.append(f"{duplicates} duplicate cell rows survived resolution "
+                      "- NOT deduping; fix the ledger")
+    missing = expected - len(unique)
+    if missing:
+        errors.append(f"{missing} of {expected} expected cells have no accepted "
+                      "observation")
+
+    # FAIL CLOSED. A duplicate is refused rather than deduped, which can leave a
     # coincidentally complete-looking corpus. Writing it anyway would let the
     # validator pass on a corpus the builder already knows is wrong - exactly the
     # Aug 2026 failure mode one layer up. So: no corpus at all when errors exist,
@@ -673,6 +955,10 @@ def cmd_build(args) -> int:
             paths["corpus"].unlink()
     else:
         paths["corpus"].write_text("".join(json.dumps(r) + "\n" for r in rows))
+    # The resolution ledger is derived from the audit and the attempt ledger, so
+    # it is rewritten each build rather than appended to.
+    paths["resolution"].write_text("".join(json.dumps(r) + "\n" for r in resolutions))
+
     blocked_rows = [r for r in rows if r["status"] == lib.STATUS_PROVIDER_BLOCKED]
     model_rows = [r for r in rows if r["model_started"]]
     out = {
@@ -687,8 +973,22 @@ def cmd_build(args) -> int:
         "provider_blocked": 0 if errors else len(blocked_rows),
         "provider_blocked_categories": sorted(
             {r["provider_refusal_category"] for r in blocked_rows}),
+        # Cell-level resolution, reported whether or not the build succeeded:
+        # these are the numbers that say WHY the corpus looks the way it does.
+        "rows": len(rows),
+        "unique_cells": len(unique),
+        "expected_cells": expected,
+        "duplicates": duplicates,
+        "missing": missing,
+        "repair_resolved_cells": int(counts["repair_resolved"]),
+        "repair_sourced_rows": int(counts[SOURCE_REPAIR]),
+        "original_rows": int(counts[SOURCE_ORIGINAL]),
+        "provider_blocked_rows": int(counts[SOURCE_PROVIDER_BLOCKED]),
+        "human_approved_supersessions": int(counts[SOURCE_APPROVED]),
+        "unresolved_cells": int(counts["unresolved"]),
         "errors": errors, "ok": not errors,
         "corpus": str(paths["corpus"].relative_to(lib.PROJECT_ROOT)),
+        "resolution_ledger": str(paths["resolution"].relative_to(lib.PROJECT_ROOT)),
     }
     (paths["provenance"] / "build_report.json").write_text(json.dumps(out, indent=2) + "\n")
     print(json.dumps(out, indent=2))

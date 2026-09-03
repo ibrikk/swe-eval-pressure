@@ -403,11 +403,17 @@ def audit(mode: str, shard: int, *, profiles=None, paths=None) -> dict:
     for profile, dirs in runs.items():
         index = task_dir_index(mode, shard, profile, paths=paths)
         for rd in dirs:
+            # Resolve trial directories once per run directory. Globbing the
+            # tree per trial is quadratic, and a 300-trial run does it 300
+            # times; the names are unique, so one index answers every lookup.
+            tree: dict[str, Path] = {}
+            for p in rd.rglob("ea-*"):
+                if p.is_dir():
+                    tree.setdefault(p.name, p)
             for trial in lib.scan_run_dir(rd):
-                matches = [p for p in rd.rglob(trial.trial_dir) if p.is_dir()]
-                if not matches:
+                tp = tree.get(trial.trial_dir)
+                if tp is None:
                     continue
-                tp = matches[0]
                 task_dir = trial.trial_dir.split("__", 1)[0]
                 base_task_id = index.get(task_dir)
                 if base_task_id is None:
