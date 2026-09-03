@@ -276,8 +276,17 @@ run_shard() {  # mode shard_index  -- ONE slice, then stop
 # run-shard and repair-shard so both leave IDENTICAL provenance: every run
 # directory the scheduler produced, recorded whether the attempt succeeded or
 # failed. Returns non-zero if any profile could not be recorded.
-record_attempts() {  # mode shard status started_at result_file note
+#
+# The 7th argument is the repair plan this invocation executed, and it is what
+# makes the two callers' provenance differ in the ONE way it must. Without it a
+# repair attempt was judged by the whole-cell rule -- 103 repaired cells
+# compared against the profile/shard expected_trials=300 -- so a repair that
+# completed every planned cell was recorded `failed` and campaign.sh died FATAL
+# on a run that had succeeded. run-shard passes "" and keeps the whole-cell
+# rule, which is correct for it.
+record_attempts() {  # mode shard status started_at result_file note [repair_plan]
   local mode="$1" shard="$2" status="$3" started="$4" resfile="$5" note="$6"
+  local repair_plan="${7:-}"
   local prov_rc=0
   for p in "${PROFILES[@]}"; do
     local dir_args=()
@@ -298,9 +307,12 @@ PYEOF
       prov_rc=1
       continue
     fi
+    local plan_args=()
+    [[ -n "$repair_plan" ]] && plan_args=(--repair-plan "$repair_plan")
     "$PY" -m campaign.provenance record \
       --mode "$mode" --profile "$p" --shard "$shard" \
-      ${dir_args[@]+"${dir_args[@]}"} --status "$status" --started-at "$started" \
+      ${dir_args[@]+"${dir_args[@]}"} ${plan_args[@]+"${plan_args[@]}"} \
+      --status "$status" --started-at "$started" \
       --note "$note" || prov_rc=1
   done
   return "$prov_rc"
@@ -495,7 +507,17 @@ PY
   fi
 
   # (6) Execute ONLY the planned cells.
-  audit "repair_start" "mode=$mode" "shard=$shard" "plan=$plan_file"
+  #
+  # Snapshot the plan FIRST. Step (8) below re-audits and rewrites $plan_file in
+  # place, so by the time anyone asks what this repair was scoped to, the frozen
+  # plan has been replaced by the post-repair one (empty, if the repair worked).
+  # The attempt's provenance has to name the plan it actually executed, so that
+  # copy is what gets recorded -- and it is immutable for the rest of the run.
+  local executed_plan="$RESULTS_ROOT/provenance/${mode}-shard${shard}-repair-plan.executed-$("$PY" -c 'import datetime;print(datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ"))').json"
+  cp "$plan_file" "$executed_plan" || die "could not snapshot the repair plan - nothing was launched."
+  info "executed plan snapshot: ${executed_plan#$PROJECT_ROOT/}"
+
+  audit "repair_start" "mode=$mode" "shard=$shard" "plan=$executed_plan"
   local resfile; resfile="$(mktemp)"
   local started; started="$($PY -c 'import datetime;print(datetime.datetime.now(datetime.timezone.utc).isoformat())')"
   local rc=0
@@ -507,7 +529,7 @@ PY
   local status="auto"; [[ "$rc" -ne 0 ]] && status="failed"
   local prov_rc=0
   record_attempts "$mode" "$shard" "$status" "$started" "$resfile" \
-    "campaign.sh repair-shard $mode shard $shard" || prov_rc=$?
+    "campaign.sh repair-shard $mode shard $shard" "$executed_plan" || prov_rc=$?
   rm -f "$resfile"
   if [[ "$rc" -ne 0 || "$prov_rc" -ne 0 ]]; then
     audit "repair_failed" "mode=$mode" "shard=$shard" "controller_rc=$rc"
@@ -537,6 +559,17 @@ print(f"  outstanding            {v['outstanding_total']}")
 for p in v["problems"]:
     print(f"  ! {p}")
 PY
+  # (8b) Record the cell-level completeness decision. Offline and idempotent:
+  # it re-reads the cells on disk and writes closure records stating
+  # original valid + accepted provider blocks + valid repair = expected. It
+  # re-runs nothing. A shard that does not add up is reported, not asserted.
+  say "reconciling repair provenance for $mode shard $shard"
+  "$PY" -m campaign.provenance reconcile --mode "$mode" --shard "$shard" \
+      --source-repair-plan "$executed_plan" --apply || {
+    audit "repair_reconcile_incomplete" "mode=$mode" "shard=$shard"
+    info "reconcile reported the shard is not yet closed at cell level - see above."
+  }
+
   validate_progress "$mode shard $shard (repair)"
 
   # (9) Stop.
